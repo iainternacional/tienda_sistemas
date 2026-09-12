@@ -1,0 +1,13 @@
+{
+  "name": "tienda-sistemas",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sistema de tienda interna del area de sistemas",
+  "scripts": {
+    "test": "node --test",
+    "push": "clasp push"
+  },
+  "devDependencies": {
+    "@google/clasp": "2.4.2"
+  }
+}
