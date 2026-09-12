@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <base target="_top">
+    <?!= incluir('web/estilos') ?>
+  </head>
+  <body>
+    <div id="cargando" class="tarjeta">Cargando...</div>
+
+    <div id="login" class="tarjeta" hidden>
+      <h1>Tienda Sistemas</h1>
+      <p class="sub">Ingrese con el usuario que le asigno el administrador.</p>
+      <label for="usuario">Usuario</label>
+      <input id="usuario" type="text" autocomplete="username">
+      <label for="clave">Clave</label>
+      <input id="clave" type="password" autocomplete="current-password">
+      <button id="btnEntrar">Entrar</button>
+      <div id="avisoLogin"></div>
+    </div>
+
+    <div id="cuenta" hidden>
+      <div class="tarjeta">
+        <h1 id="saludo"></h1>
+        <p class="sub">Saldo pendiente</p>
+        <p class="saldo" id="saldo"></p>
+      </div>
+
+      <div class="tarjeta">
+        <h2>Registrar lo que me llevo</h2>
+        <label for="producto">Producto</label>
+        <select id="producto"></select>
+        <label for="cantidad">Cantidad</label>
+        <input id="cantidad" type="number" min="1" step="1" value="1">
+        <button id="btnRegistrar">Registrar</button>
+        <div id="avisoRegistro"></div>
+      </div>
+
+      <div class="tarjeta">
+        <h2>Lo que estoy debiendo</h2>
+        <table>
+          <thead>
+            <tr><th>Fecha</th><th>Producto</th><th class="valor">Cant.</th><th class="valor">Valor</th></tr>
+          </thead>
+          <tbody id="desglose"></tbody>
+        </table>
+        <p id="sinDeuda" class="vacio" hidden>No tiene nada pendiente.</p>
+      </div>
+    </div>
+
+    <script>
+      var token = '';
+      try { token = localStorage.getItem('tokenTienda') || ''; } catch (e) { token = ''; }
+
+      function pesos(valor) {
+        return '$' + Number(valor || 0).toLocaleString('es-CO');
+      }
+
+      function fechaCorta(iso) {
+        var fecha = new Date(iso);
+        if (isNaN(fecha.getTime())) { return String(iso); }
+        return fecha.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' });
+      }
+
+      function mostrarAviso(idContenedor, texto, esError) {
+        var contenedor = document.getElementById(idContenedor);
+        if (!texto) { contenedor.innerHTML = ''; return; }
+        contenedor.innerHTML = '<div class="aviso ' + (esError ? 'error' : 'ok') + '"></div>';
+        contenedor.firstChild.textContent = texto;
+      }
+
+      function pintarEstado(estado) {
+        document.getElementById('cargando').hidden = true;
+        if (!estado.autenticado) {
+          document.getElementById('cuenta').hidden = true;
+          document.getElementById('login').hidden = false;
+          return;
+        }
+        document.getElementById('login').hidden = true;
+        document.getElementById('cuenta').hidden = false;
+        document.getElementById('saludo').textContent = 'Hola, ' + estado.nombre;
+        document.getElementById('saldo').textContent = pesos(estado.saldo);
+
+        var select = document.getElementById('producto');
+        select.innerHTML = '';
+        estado.productos.forEach(function (producto) {
+          var opcion = document.createElement('option');
+          opcion.value = producto.id;
+          opcion.textContent = producto.nombre + ' - ' + pesos(producto.precioVenta) + ' (quedan ' + producto.stockActual + ')';
+          opcion.disabled = producto.stockActual <= 0;
+          select.appendChild(opcion);
+        });
+
+        var cuerpo = document.getElementById('desglose');
+        cuerpo.innerHTML = '';
+        estado.desglose.forEach(function (linea) {
+          var fila = document.createElement('tr');
+          [fechaCorta(linea.fecha), linea.concepto, String(linea.cantidad), pesos(linea.valorTotal)].forEach(function (texto, indice) {
+            var celda = document.createElement('td');
+            if (indice >= 2) { celda.className = 'valor'; }
+            celda.textContent = texto;
+            fila.appendChild(celda);
+          });
+          cuerpo.appendChild(fila);
+        });
+        document.getElementById('sinDeuda').hidden = estado.desglose.length > 0;
+      }
+
+      function cargarEstado() {
+        google.script.run.withSuccessHandler(pintarEstado).apiObtenerEstado(token);
+      }
+
+      document.getElementById('btnEntrar').addEventListener('click', function () {
+        var boton = this;
+        boton.disabled = true;
+        mostrarAviso('avisoLogin', '', false);
+        google.script.run.withSuccessHandler(function (respuesta) {
+          boton.disabled = false;
+          if (!respuesta.ok) {
+            mostrarAviso('avisoLogin', respuesta.mensaje, true);
+            return;
+          }
+          token = respuesta.token;
+          try { localStorage.setItem('tokenTienda', token); } catch (e) {}
+          cargarEstado();
+        }).apiIniciarSesion(
+          document.getElementById('usuario').value,
+          document.getElementById('clave').value
+        );
+      });
+
+      document.getElementById('btnRegistrar').addEventListener('click', function () {
+        var boton = this;
+        boton.disabled = true;
+        mostrarAviso('avisoRegistro', '', false);
+        google.script.run.withSuccessHandler(function (respuesta) {
+          boton.disabled = false;
+          mostrarAviso('avisoRegistro', respuesta.mensaje, !respuesta.ok);
+          if (respuesta.ok) {
+            respuesta.autenticado = true;
+            pintarEstado(respuesta);
+            document.getElementById('cantidad').value = '1';
+          }
+        }).apiRegistrarFiado(
+          token,
+          document.getElementById('producto').value,
+          Number(document.getElementById('cantidad').value)
+        );
+      });
+
+      cargarEstado();
+    </script>
+  </body>
+</html>
