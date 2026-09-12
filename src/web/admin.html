@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <base target="_top">
+    <?!= incluir('web/estilos') ?>
+  </head>
+  <body>
+    <div id="cargando" class="tarjeta">Cargando...</div>
+    <div id="sinPermiso" class="tarjeta" hidden>
+      <h1>Solo para el administrador</h1>
+      <p class="sub">Esta vista requiere iniciar sesion como administrador.</p>
+    </div>
+
+    <div id="panel" hidden>
+      <div class="tarjeta">
+        <h1>Panel de administracion</h1>
+        <p class="sub" id="quien"></p>
+      </div>
+
+      <div class="tarjeta">
+        <h2>Nuevo producto</h2>
+        <label for="nombre">Nombre</label>
+        <input id="nombre" type="text">
+        <label for="categoria">Categoria</label>
+        <input id="categoria" type="text">
+        <label for="costo">Costo (lo que me costo)</label>
+        <input id="costo" type="number" min="1" step="1">
+        <label for="precioVenta">Precio de venta</label>
+        <input id="precioVenta" type="number" min="1" step="1">
+        <label for="stockInicial">Stock inicial</label>
+        <input id="stockInicial" type="number" min="0" step="1" value="0">
+        <button id="btnCrearProducto">Crear producto</button>
+        <div id="avisoProducto"></div>
+      </div>
+
+      <div class="tarjeta">
+        <h2>Ajustar stock</h2>
+        <label for="productoAjuste">Producto</label>
+        <select id="productoAjuste"></select>
+        <label for="stockNuevo">Nuevo stock</label>
+        <input id="stockNuevo" type="number" min="0" step="1">
+        <button id="btnAjustarStock">Guardar stock</button>
+        <div id="avisoStock"></div>
+      </div>
+
+      <div class="tarjeta">
+        <h2>Registrar fiado a nombre de alguien</h2>
+        <label for="usuarioDestino">Comprador</label>
+        <select id="usuarioDestino"></select>
+        <label for="productoAdmin">Producto</label>
+        <select id="productoAdmin"></select>
+        <label for="cantidadAdmin">Cantidad</label>
+        <input id="cantidadAdmin" type="number" min="1" step="1" value="1">
+        <button id="btnFiadoAdmin">Registrar</button>
+        <div id="avisoFiadoAdmin"></div>
+      </div>
+
+      <div class="tarjeta">
+        <h2>Ultimos movimientos</h2>
+        <table>
+          <thead>
+            <tr><th>Fecha</th><th>Quien</th><th>Producto</th><th class="valor">Valor</th><th></th></tr>
+          </thead>
+          <tbody id="movimientos"></tbody>
+        </table>
+        <div id="avisoAnulacion"></div>
+      </div>
+    </div>
+
+    <script>
+      var token = '';
+      try { token = localStorage.getItem('tokenTienda') || ''; } catch (e) { token = ''; }
+      var productosCache = [];
+
+      function pesos(valor) {
+        return '$' + Number(valor || 0).toLocaleString('es-CO');
+      }
+
+      function fechaCorta(iso) {
+        var fecha = new Date(iso);
+        if (isNaN(fecha.getTime())) { return String(iso); }
+        return fecha.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' });
+      }
+
+      function mostrarAviso(idContenedor, texto, esError) {
+        var contenedor = document.getElementById(idContenedor);
+        if (!texto) { contenedor.innerHTML = ''; return; }
+        contenedor.innerHTML = '<div class="aviso ' + (esError ? 'error' : 'ok') + '"></div>';
+        contenedor.firstChild.textContent = texto;
+      }
+
+      function llenarSelectProductos(select, productos) {
+        select.innerHTML = '';
+        productos.forEach(function (producto) {
+          var opcion = document.createElement('option');
+          opcion.value = producto.id;
+          opcion.textContent = producto.nombre + ' (' + producto.stockActual + ')';
+          select.appendChild(opcion);
+        });
+      }
+
+      function pintarProductos(productos) {
+        productosCache = productos;
+        llenarSelectProductos(document.getElementById('productoAjuste'), productos);
+        llenarSelectProductos(document.getElementById('productoAdmin'), productos);
+      }
+
+      function cargarMovimientos() {
+        google.script.run.withSuccessHandler(function (respuesta) {
+          var cuerpo = document.getElementById('movimientos');
+          cuerpo.innerHTML = '';
+          respuesta.transacciones.forEach(function (movimiento) {
+            var fila = document.createElement('tr');
+            [fechaCorta(movimiento.fecha), movimiento.usuario, movimiento.concepto + ' x' + movimiento.cantidad, pesos(movimiento.valorTotal)]
+              .forEach(function (texto, indice) {
+                var celda = document.createElement('td');
+                if (indice === 3) { celda.className = 'valor'; }
+                celda.textContent = texto;
+                fila.appendChild(celda);
+              });
+            var celdaAccion = document.createElement('td');
+            celdaAccion.className = 'valor';
+            if (movimiento.estado === 'anulado') {
+              celdaAccion.textContent = 'anulado';
+            } else {
+              var boton = document.createElement('button');
+              boton.textContent = 'Anular';
+              boton.style.margin = '0';
+              boton.style.width = 'auto';
+              boton.style.padding = '4px 10px';
+              boton.style.fontSize = '13px';
+              boton.addEventListener('click', function () {
+                var motivo = prompt('Motivo de la anulacion:');
+                if (!motivo) { return; }
+                boton.disabled = true;
+                google.script.run.withSuccessHandler(function (resultado) {
+                  mostrarAviso('avisoAnulacion', resultado.mensaje, !resultado.ok);
+                  cargarTodo();
+                }).apiAnularTransaccion(token, movimiento.id, motivo);
+              });
+              celdaAccion.appendChild(boton);
+            }
+            fila.appendChild(celdaAccion);
+            cuerpo.appendChild(fila);
+          });
+        }).apiListarTransaccionesRecientes(token);
+      }
+
+      function cargarTodo() {
+        google.script.run.withSuccessHandler(function (estado) {
+          document.getElementById('cargando').hidden = true;
+          if (!estado.autenticado || estado.rol !== 'admin') {
+            document.getElementById('sinPermiso').hidden = false;
+            return;
+          }
+          document.getElementById('panel').hidden = false;
+          document.getElementById('quien').textContent = 'Conectado como ' + estado.nombre;
+          pintarProductos(estado.productos);
+          google.script.run.withSuccessHandler(function (respuesta) {
+            var select = document.getElementById('usuarioDestino');
+            select.innerHTML = '';
+            respuesta.usuarios.forEach(function (usuario) {
+              var opcion = document.createElement('option');
+              opcion.value = usuario.id;
+              opcion.textContent = usuario.nombre;
+              select.appendChild(opcion);
+            });
+          }).apiListarUsuarios(token);
+          cargarMovimientos();
+        }).apiObtenerEstado(token);
+      }
+
+      document.getElementById('btnCrearProducto').addEventListener('click', function () {
+        var boton = this;
+        boton.disabled = true;
+        google.script.run.withSuccessHandler(function (respuesta) {
+          boton.disabled = false;
+          mostrarAviso('avisoProducto', respuesta.mensaje, !respuesta.ok);
+          if (respuesta.ok) {
+            pintarProductos(respuesta.productos);
+            ['nombre', 'categoria', 'costo', 'precioVenta'].forEach(function (id) {
+              document.getElementById(id).value = '';
+            });
+            document.getElementById('stockInicial').value = '0';
+          }
+        }).apiCrearProducto(token, {
+          nombre: document.getElementById('nombre').value,
+          categoria: document.getElementById('categoria').value,
+          costo: Number(document.getElementById('costo').value),
+          precioVenta: Number(document.getElementById('precioVenta').value),
+          stockActual: Number(document.getElementById('stockInicial').value)
+        });
+      });
+
+      document.getElementById('btnAjustarStock').addEventListener('click', function () {
+        var boton = this;
+        boton.disabled = true;
+        google.script.run.withSuccessHandler(function (respuesta) {
+          boton.disabled = false;
+          mostrarAviso('avisoStock', respuesta.mensaje, !respuesta.ok);
+          if (respuesta.ok) { pintarProductos(respuesta.productos); }
+        }).apiActualizarProducto(
+          token,
+          document.getElementById('productoAjuste').value,
+          { stockActual: Number(document.getElementById('stockNuevo').value) }
+        );
+      });
+
+      document.getElementById('btnFiadoAdmin').addEventListener('click', function () {
+        var boton = this;
+        boton.disabled = true;
+        google.script.run.withSuccessHandler(function (respuesta) {
+          boton.disabled = false;
+          mostrarAviso('avisoFiadoAdmin', respuesta.mensaje, !respuesta.ok);
+          if (respuesta.ok) { cargarTodo(); }
+        }).apiRegistrarFiadoComoAdmin(
+          token,
+          document.getElementById('usuarioDestino').value,
+          document.getElementById('productoAdmin').value,
+          Number(document.getElementById('cantidadAdmin').value)
+        );
+      });
+
+      cargarTodo();
+    </script>
+  </body>
+</html>
