@@ -14,10 +14,20 @@ comprador cuánto debe.
 Escala: pequeña — menos de 50 compradores, menos de 100 productos, volumen de
 transacciones bajo.
 
+Dos procesos manuales son especialmente lentos hoy y son un objetivo explícito de
+automatización de este proyecto:
+
+1. **Fiado en papel**: el comprador saca el producto y anota en una hoja de papel
+   qué se llevó; el admin luego revisa esas anotaciones, papel por papel, y las
+   digita manualmente en la cuenta de cada persona.
+2. **Inventario manual**: cuando llega mercancía nueva, el admin digita a mano
+   cada producto de la factura del proveedor.
+
 Objetivo del sistema nuevo: reemplazar Forms + Apps Script suelto por una web app
 propia (Apps Script Web App) que cubra inventario, fiado, préstamos en efectivo,
 pérdidas, gastos compartidos, pagos, y una vista de autoservicio para cada
-comprador — manteniendo el costo en cero y aprovechando Google Workspace para el
+comprador — eliminando los dos cuellos de botella manuales anteriores, y
+manteniendo el costo en cero (o casi cero) aprovechando Google Workspace para el
 login corporativo.
 
 Fuera de alcance (por ahora): apps nativas móviles, soporte para clientes externos
@@ -44,6 +54,8 @@ Cada entidad vive en su propia hoja de Google Sheets.
 ### Transaccion (compra/fiado)
 - `id`, `usuario_id`, `producto_id`, `cantidad`, `valor_unitario`, `valor_total`
 - `fecha`
+- `origen`: `autoregistro` (el propio comprador la creó) | `admin` (la registró el
+  administrador)
 - `estado`: `pendiente` | `pagado` | `anulado`
 - `anulado_por`, `anulado_fecha`, `anulado_motivo` (si aplica)
 
@@ -89,7 +101,11 @@ admin cuando asocia un producto al usuario equivocado.
 - Ver reportes globales (ganancias, pérdidas, cartera pendiente).
 
 ### Comprador
-- Solo lectura de su propia información:
+- **Auto-registro de fiado**: al sacar un producto de la tienda, elige el
+  producto y la cantidad directamente en la app — queda anotado de inmediato en
+  su cuenta (`Transaccion` con `origen = autoregistro`), sin que el admin tenga
+  que digitarlo. La app solo permite elegir productos con stock disponible.
+- Lectura de su propia información:
   - Saldo total pendiente.
   - Desglose de qué le compone ese saldo (por producto, préstamo, o gasto
     compartido).
@@ -104,7 +120,46 @@ admin cuando asocia un producto al usuario equivocado.
   Google, y el admin ya está acostumbrado a dar de alta manualmente a este tipo de
   usuarios.
 
-## 4. Reportes
+## 4. Automatización de procesos manuales
+
+### 4.1 Auto-registro de fiado (reemplaza el papel)
+
+El comprador, desde su celular o cualquier navegador, entra a su vista de "Mi
+cuenta" y ahí mismo registra lo que se lleva: elige el producto y la cantidad de
+una lista (con el stock disponible visible), y confirma. Eso crea la
+`Transaccion` directamente en su cuenta y descuenta el stock, sin pasar por el
+admin. Ya no se necesita papel ni digitación posterior.
+
+- Si el comprador se equivoca, no puede borrar su propio registro — le pide al
+  admin que lo anule (mismo mecanismo de anulación de la sección 2).
+- El admin conserva la posibilidad de registrar una compra/fiado manualmente en
+  nombre de alguien (`origen = admin`), para los casos excepcionales en que el
+  comprador no pueda hacerlo él mismo (ej. no tiene el celular a mano).
+
+### 4.2 Ingreso de inventario por foto/escaneo de factura
+
+Cuando llega mercancía nueva, el admin toma una foto o sube un escaneo de la
+factura del proveedor desde el panel de administrador. El sistema:
+
+1. Envía la imagen a un servicio de IA (Gemini API de Google, con nivel gratuito
+   — se integra desde Apps Script vía `UrlFetchApp`) pidiéndole que extraiga cada
+   línea de producto: nombre, cantidad, y costo unitario.
+2. Muestra un **resumen editable** con lo que detectó, línea por línea, antes de
+   tocar el inventario real. El admin puede corregir cualquier valor mal leído,
+   eliminar líneas que no aplican, o completar datos faltantes.
+3. Para cada línea, el sistema intenta emparejarla con un producto existente por
+   nombre; si no encuentra coincidencia, la marca como "producto nuevo" para que
+   el admin decida si crearlo o corregir el nombre para que empate con uno
+   existente.
+4. Solo al confirmar el resumen se actualiza el `stock_actual` de cada producto
+   (o se crean los productos nuevos) y queda un registro del ingreso de
+   inventario para trazabilidad.
+
+Como las facturas son una mezcla de impresas y manuscritas, la lectura automática
+no será perfecta — por eso el paso de resumen editable (punto 2) es obligatorio,
+nunca se actualiza el inventario directo desde la foto sin revisión humana.
+
+## 5. Reportes
 
 - **Ganancia por periodo**: suma de `(precio_venta − costo) × cantidad_vendida`
   sobre transacciones no anuladas, en un rango de fechas.
@@ -114,22 +169,28 @@ admin cuando asocia un producto al usuario equivocado.
 - **Histórico de gastos compartidos**: por motivo (bienvenida, cumpleaños, otro),
   con el detalle de participantes y valor por persona.
 
-## 5. Arquitectura técnica
+## 6. Arquitectura técnica
 
 - **Base de datos**: Google Sheets (una hoja por entidad, según el modelo de
   datos de la sección 2).
 - **Backend**: Google Apps Script — funciones de negocio (registrar transacción,
   calcular saldo, dividir gasto compartido, generar reportes) expuestas a través
   de un Web App (`doGet`/`doPost` o `google.script.run` desde el HTML Service).
+- **Lectura de facturas (OCR/IA)**: llamada desde Apps Script (`UrlFetchApp`) a la
+  Gemini API (Google AI Studio) para extraer líneas de producto de la foto de la
+  factura, con nivel gratuito suficiente para el volumen bajo de esta tienda.
+  Requiere una API key de Google AI Studio a nombre del admin.
 - **Frontend**: Apps Script HTML Service, con dos vistas principales:
-  - Panel de administrador (inventario, registrar movimientos, reportes).
-  - "Mi cuenta" (vista de comprador: saldo y detalle).
+  - Panel de administrador (inventario, ingreso de facturas, registrar
+    movimientos, reportes).
+  - "Mi cuenta" (vista de comprador: auto-registro de fiado, saldo y detalle).
 - **Móvil**: la web app responde a distintos tamaños de pantalla y se puede
   agregar como acceso directo en el celular (estilo PWA) — sin necesidad de app
   nativa.
-- **Costo**: cero — todo corre dentro de la cuenta de Google Workspace existente.
+- **Costo**: cero o casi cero — todo corre dentro de la cuenta de Google
+  Workspace existente, usando los niveles gratuitos de Apps Script y Gemini API.
 
-## 6. Fuera de alcance / futuro
+## 7. Fuera de alcance / futuro
 
 - Apps nativas móviles (iOS/Android).
 - Clientes externos a la organización.
