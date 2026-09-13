@@ -27,6 +27,8 @@
         <input id="categoria" type="text">
         <label for="costo">Costo (lo que me costo)</label>
         <input id="costo" type="number" min="1" step="1">
+        <label for="porcentajeAumento">Porcentaje de aumento (%)</label>
+        <input id="porcentajeAumento" type="number" min="0" step="0.01">
         <label for="precioVenta">Precio de venta</label>
         <input id="precioVenta" type="number" min="1" step="1">
         <label for="stockInicial">Stock inicial</label>
@@ -90,6 +92,16 @@
         contenedor.innerHTML = '<div class="aviso ' + (esError ? 'error' : 'ok') + '"></div>';
         contenedor.firstChild.textContent = texto;
       }
+
+      function calcularPrecioVentaSugerido() {
+        var costo = Number(document.getElementById('costo').value);
+        var porcentaje = Number(document.getElementById('porcentajeAumento').value);
+        if (!costo || !porcentaje) { return; }
+        document.getElementById('precioVenta').value = Math.round(costo * (1 + porcentaje / 100));
+      }
+
+      document.getElementById('costo').addEventListener('input', calcularPrecioVentaSugerido);
+      document.getElementById('porcentajeAumento').addEventListener('input', calcularPrecioVentaSugerido);
 
       function llenarSelectProductos(select, productos) {
         select.innerHTML = '';
@@ -181,7 +193,7 @@
           mostrarAviso('avisoProducto', respuesta.mensaje, !respuesta.ok);
           if (respuesta.ok) {
             pintarProductos(respuesta.productos);
-            ['nombre', 'alias', 'categoria', 'costo', 'precioVenta'].forEach(function (id) {
+            ['nombre', 'alias', 'categoria', 'costo', 'porcentajeAumento', 'precioVenta'].forEach(function (id) {
               document.getElementById(id).value = '';
             });
             document.getElementById('stockInicial').value = '0';
