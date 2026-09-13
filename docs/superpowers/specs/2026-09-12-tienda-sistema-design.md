@@ -47,7 +47,14 @@ Cada entidad vive en su propia hoja de Google Sheets.
 
 ### Producto
 - `id`, `nombre`, `categoria`
+- `alias` (opcional) — apodo corto para distinguir productos de nombre parecido
+  (ej. "Detodito BBQ" con alias "Detodito"). Es solo una etiqueta visible en los
+  desplegables de producto; no se usa para búsqueda.
 - `costo` (precio de compra), `precio_venta`
+- `porcentaje_aumento` — margen con el que se calculó el precio de venta
+  (`precio_venta = redondear(costo × (1 + porcentaje/100))`). Se guarda como
+  referencia del margen aplicado; el valor que manda es `precio_venta`, que el
+  administrador puede ajustar a mano después del cálculo.
 - `stock_actual`
 - `activo`
 

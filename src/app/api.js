@@ -154,7 +154,8 @@ function apiCrearProducto(token, datos) {
       categoria: String(datos.categoria || '').trim(),
       costo: Number(datos.costo),
       precioVenta: Number(datos.precioVenta),
-      stockActual: Number(datos.stockActual)
+      stockActual: Number(datos.stockActual),
+      porcentajeAumento: Number(datos.porcentajeAumento) || 0
     };
     const validacion = validarProductoNuevo(normalizados);
     if (!validacion.valido) {
@@ -172,7 +173,8 @@ function apiCrearProducto(token, datos) {
       costo: normalizados.costo,
       precioVenta: normalizados.precioVenta,
       stockActual: normalizados.stockActual,
-      activo: true
+      activo: true,
+      porcentajeAumento: normalizados.porcentajeAumento
     });
     return { ok: true, mensaje: 'Producto creado', productos: productosVisibles() };
   } catch (error) {
