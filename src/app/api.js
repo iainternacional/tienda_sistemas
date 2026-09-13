@@ -56,6 +56,7 @@ function productosVisibles() {
       return {
         id: producto.id,
         nombre: producto.nombre,
+        alias: producto.alias,
         categoria: producto.categoria,
         precioVenta: producto.precioVenta,
         stockActual: producto.stockActual
@@ -149,6 +150,7 @@ function apiCrearProducto(token, datos) {
     exigirAdmin(token);
     const normalizados = {
       nombre: String(datos.nombre || '').trim(),
+      alias: String(datos.alias || '').trim(),
       categoria: String(datos.categoria || '').trim(),
       costo: Number(datos.costo),
       precioVenta: Number(datos.precioVenta),
@@ -165,6 +167,7 @@ function apiCrearProducto(token, datos) {
     agregarFila(libro, 'Productos', {
       id: nuevoId(),
       nombre: normalizados.nombre,
+      alias: normalizados.alias,
       categoria: normalizados.categoria,
       costo: normalizados.costo,
       precioVenta: normalizados.precioVenta,

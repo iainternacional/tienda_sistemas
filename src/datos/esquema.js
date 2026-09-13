@@ -4,7 +4,7 @@ var ESQUEMA = {
     'usuario', 'salt', 'claveHash', 'esPseudoUsuario', 'activo'
   ],
   Productos: [
-    'id', 'nombre', 'categoria', 'costo', 'precioVenta', 'stockActual', 'activo'
+    'id', 'nombre', 'categoria', 'costo', 'precioVenta', 'stockActual', 'activo', 'alias'
   ],
   Transacciones: [
     'id', 'usuarioId', 'productoId', 'productoNombre', 'cantidad',

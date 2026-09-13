@@ -85,7 +85,8 @@
         estado.productos.forEach(function (producto) {
           var opcion = document.createElement('option');
           opcion.value = producto.id;
-          opcion.textContent = producto.nombre + ' - ' + pesos(producto.precioVenta) + ' (quedan ' + producto.stockActual + ')';
+          var etiqueta = producto.alias ? producto.nombre + ' · ' + producto.alias : producto.nombre;
+          opcion.textContent = etiqueta + ' - ' + pesos(producto.precioVenta) + ' (quedan ' + producto.stockActual + ')';
           opcion.disabled = producto.stockActual <= 0;
           select.appendChild(opcion);
         });

@@ -21,6 +21,8 @@
         <h2>Nuevo producto</h2>
         <label for="nombre">Nombre</label>
         <input id="nombre" type="text">
+        <label for="alias">Alias (opcional)</label>
+        <input id="alias" type="text">
         <label for="categoria">Categoria</label>
         <input id="categoria" type="text">
         <label for="costo">Costo (lo que me costo)</label>
@@ -94,7 +96,8 @@
         productos.forEach(function (producto) {
           var opcion = document.createElement('option');
           opcion.value = producto.id;
-          opcion.textContent = producto.nombre + ' (' + producto.stockActual + ')';
+          var etiqueta = producto.alias ? producto.nombre + ' · ' + producto.alias : producto.nombre;
+          opcion.textContent = etiqueta + ' (' + producto.stockActual + ')';
           select.appendChild(opcion);
         });
       }
@@ -178,13 +181,14 @@
           mostrarAviso('avisoProducto', respuesta.mensaje, !respuesta.ok);
           if (respuesta.ok) {
             pintarProductos(respuesta.productos);
-            ['nombre', 'categoria', 'costo', 'precioVenta'].forEach(function (id) {
+            ['nombre', 'alias', 'categoria', 'costo', 'precioVenta'].forEach(function (id) {
               document.getElementById(id).value = '';
             });
             document.getElementById('stockInicial').value = '0';
           }
         }).apiCrearProducto(token, {
           nombre: document.getElementById('nombre').value,
+          alias: document.getElementById('alias').value,
           categoria: document.getElementById('categoria').value,
           costo: Number(document.getElementById('costo').value),
           precioVenta: Number(document.getElementById('precioVenta').value),
