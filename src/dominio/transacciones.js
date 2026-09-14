@@ -43,7 +43,8 @@ function crearTransaccionFiado(datos) {
     estado: 'pendiente',
     anuladoPor: '',
     anuladoFecha: '',
-    anuladoMotivo: ''
+    anuladoMotivo: '',
+    costoUnitario: datos.producto.costo
   };
 }
 

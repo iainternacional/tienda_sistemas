@@ -87,3 +87,8 @@ test('anularTransaccion rechaza anular dos veces', () => {
     anuladoPor: 'admin@ipuc.org.co', anuladoFecha: '2026-09-14T08:00:00.000Z', anuladoMotivo: 'otra vez'
   }), /ya esta anulad/i);
 });
+
+test('crearTransaccionFiado guarda el costo del producto al momento de la venta', () => {
+  const transaccion = crearTransaccionFiado(datosBase());
+  assert.strictEqual(transaccion.costoUnitario, PRODUCTO.costo);
+});
