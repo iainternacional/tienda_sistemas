@@ -110,6 +110,38 @@
       </div>
 
       <div class="tarjeta">
+        <h2>Reportes</h2>
+        <label for="desdeReporte">Desde</label>
+        <input id="desdeReporte" type="date">
+        <label for="hastaReporte">Hasta</label>
+        <input id="hastaReporte" type="date">
+        <button id="btnReportes">Ver reportes</button>
+        <div id="avisoReportes"></div>
+        <div id="resumenReportes"></div>
+        <h3>Ganancia por producto</h3>
+        <table>
+          <thead>
+            <tr><th>Producto</th><th class="valor">Cant.</th><th class="valor">Ingresos</th><th class="valor">Ganancia</th></tr>
+          </thead>
+          <tbody id="tablaGanancia"></tbody>
+        </table>
+        <h3>Cartera pendiente</h3>
+        <table>
+          <thead>
+            <tr><th>Comprador</th><th class="valor">Saldo</th></tr>
+          </thead>
+          <tbody id="tablaCartera"></tbody>
+        </table>
+        <h3>Perdidas</h3>
+        <table>
+          <thead>
+            <tr><th>Fecha</th><th>Producto</th><th>Motivo</th><th class="valor">Valor</th></tr>
+          </thead>
+          <tbody id="tablaPerdidas"></tbody>
+        </table>
+      </div>
+
+      <div class="tarjeta">
         <h2>Ultimos movimientos</h2>
         <table>
           <thead>
@@ -358,6 +390,55 @@
           token,
           document.getElementById('usuarioPago').value,
           Number(document.getElementById('valorPago').value)
+        );
+      });
+
+      function pintarFilas(idCuerpo, filas) {
+        var cuerpo = document.getElementById(idCuerpo);
+        cuerpo.innerHTML = '';
+        filas.forEach(function (celdas) {
+          var fila = document.createElement('tr');
+          celdas.forEach(function (texto, indice) {
+            var celda = document.createElement('td');
+            if (indice > 0) { celda.className = 'valor'; }
+            celda.textContent = texto;
+            fila.appendChild(celda);
+          });
+          cuerpo.appendChild(fila);
+        });
+      }
+
+      document.getElementById('btnReportes').addEventListener('click', function () {
+        var boton = this;
+        boton.disabled = true;
+        google.script.run.withSuccessHandler(function (respuesta) {
+          boton.disabled = false;
+          if (!respuesta.ok) {
+            mostrarAviso('avisoReportes', respuesta.mensaje, true);
+            return;
+          }
+          mostrarAviso('avisoReportes', '', false);
+          var resumen = 'Ganancia: ' + pesos(respuesta.ganancia.total) +
+            ' · Perdidas: ' + pesos(respuesta.perdidas.total) +
+            ' · Cartera: ' + pesos(respuesta.cartera.total);
+          if (respuesta.ganancia.estimado) {
+            resumen += ' (la ganancia incluye ventas sin costo historico, calculadas con el costo actual)';
+          }
+          document.getElementById('resumenReportes').textContent = resumen;
+
+          pintarFilas('tablaGanancia', respuesta.ganancia.porProducto.map(function (fila) {
+            return [fila.nombre, String(fila.cantidad), pesos(fila.ingresos), pesos(fila.ganancia)];
+          }));
+          pintarFilas('tablaCartera', respuesta.cartera.porUsuario.map(function (fila) {
+            return [fila.nombre, pesos(fila.saldo)];
+          }));
+          pintarFilas('tablaPerdidas', respuesta.perdidas.lineas.map(function (fila) {
+            return [fechaCorta(fila.fecha), fila.producto, fila.motivo, pesos(fila.valor)];
+          }));
+        }).apiReportes(
+          token,
+          document.getElementById('desdeReporte').value,
+          document.getElementById('hastaReporte').value
         );
       });
 

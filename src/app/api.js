@@ -471,6 +471,34 @@ function apiRegistrarPago(token, usuarioId, valor) {
   }
 }
 
+function apiReportes(token, desde, hasta) {
+  try {
+    exigirAdmin(token);
+    const libro = obtenerLibro();
+    const movimientos = leerMovimientos(libro);
+    const productos = leerTodo(libro, 'Productos');
+    const usuarios = leerTodo(libro, 'Usuarios');
+    const perdidas = leerTodo(libro, 'Perdidas');
+    return {
+      ok: true,
+      mensaje: '',
+      ganancia: reporteGanancia(movimientos.transacciones, productos, desde, hasta),
+      perdidas: reportePerdidas(perdidas, desde, hasta),
+      cartera: reporteCartera(movimientos, usuarios),
+      gastos: reporteGastosCompartidos(movimientos.gastos)
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      mensaje: error.message,
+      ganancia: { total: 0, estimado: false, porProducto: [] },
+      perdidas: { total: 0, lineas: [] },
+      cartera: { total: 0, porUsuario: [] },
+      gastos: []
+    };
+  }
+}
+
 function apiListarTransaccionesRecientes(token) {
   try {
     exigirAdmin(token);
