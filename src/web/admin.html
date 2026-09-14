@@ -82,6 +82,24 @@
       </div>
 
       <div class="tarjeta">
+        <h2>Gasto compartido</h2>
+        <label for="motivoGasto">Motivo</label>
+        <select id="motivoGasto">
+          <option value="bienvenida">Bienvenida</option>
+          <option value="cumpleanos">Cumpleanos</option>
+          <option value="otro">Otro</option>
+        </select>
+        <label for="descripcionGasto">Descripcion</label>
+        <input id="descripcionGasto" type="text">
+        <label for="valorGasto">Valor total</label>
+        <input id="valorGasto" type="number" min="1" step="1">
+        <label for="participantesGasto">Participantes (mantenga Ctrl para elegir varios)</label>
+        <select id="participantesGasto" multiple size="8"></select>
+        <button id="btnGasto">Repartir gasto</button>
+        <div id="avisoGasto"></div>
+      </div>
+
+      <div class="tarjeta">
         <h2>Ultimos movimientos</h2>
         <table>
           <thead>
@@ -195,7 +213,7 @@
           document.getElementById('quien').textContent = 'Conectado como ' + estado.nombre;
           pintarProductos(estado.productos);
           google.script.run.withSuccessHandler(function (respuesta) {
-            ['usuarioDestino', 'usuarioPrestamo'].forEach(function (idSelect) {
+            ['usuarioDestino', 'usuarioPrestamo', 'participantesGasto'].forEach(function (idSelect) {
               var select = document.getElementById(idSelect);
               select.innerHTML = '';
               respuesta.usuarios.forEach(function (usuario) {
@@ -294,6 +312,29 @@
           Number(document.getElementById('cantidadPerdida').value),
           document.getElementById('motivoPerdida').value
         );
+      });
+
+      document.getElementById('btnGasto').addEventListener('click', function () {
+        var boton = this;
+        var seleccionados = [];
+        var opciones = document.getElementById('participantesGasto').options;
+        for (var i = 0; i < opciones.length; i++) {
+          if (opciones[i].selected) { seleccionados.push(opciones[i].value); }
+        }
+        boton.disabled = true;
+        google.script.run.withSuccessHandler(function (respuesta) {
+          boton.disabled = false;
+          mostrarAviso('avisoGasto', respuesta.mensaje, !respuesta.ok);
+          if (respuesta.ok) {
+            document.getElementById('descripcionGasto').value = '';
+            document.getElementById('valorGasto').value = '';
+          }
+        }).apiRegistrarGastoCompartido(token, {
+          motivo: document.getElementById('motivoGasto').value,
+          descripcion: document.getElementById('descripcionGasto').value,
+          valorTotal: Number(document.getElementById('valorGasto').value),
+          participantes: seleccionados
+        });
       });
 
       cargarTodo();

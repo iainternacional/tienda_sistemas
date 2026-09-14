@@ -378,6 +378,61 @@ function apiAnularPerdida(token, perdidaId, motivo) {
   }
 }
 
+function apiRegistrarGastoCompartido(token, datos) {
+  try {
+    exigirAdmin(token);
+    const libro = obtenerLibro();
+    const gasto = crearGastoCompartido({
+      id: nuevoId(),
+      motivo: String(datos.motivo || '').trim(),
+      descripcion: datos.descripcion,
+      valorTotal: Number(datos.valorTotal),
+      participantes: datos.participantes || [],
+      fecha: ahoraIso()
+    });
+    agregarFila(libro, 'GastosCompartidos', gasto);
+    const cuotas = cuotasDeGasto(gasto);
+    return {
+      ok: true,
+      mensaje: 'Gasto repartido entre ' + cuotas.length + ' personas'
+    };
+  } catch (error) {
+    return { ok: false, mensaje: error.message };
+  }
+}
+
+function apiAnularGastoCompartido(token, gastoId, motivo) {
+  try {
+    const admin = exigirAdmin(token);
+    const libro = obtenerLibro();
+    const gastos = leerTodo(libro, 'GastosCompartidos');
+    let original = null;
+    for (let i = 0; i < gastos.length; i++) {
+      if (gastos[i].id === gastoId) {
+        original = gastos[i];
+        break;
+      }
+    }
+    if (!original) {
+      return { ok: false, mensaje: 'No se encontro el gasto compartido' };
+    }
+    const anulado = anularRegistro(original, {
+      anuladoPor: admin.nombre,
+      anuladoFecha: ahoraIso(),
+      anuladoMotivo: motivo
+    });
+    actualizarPorId(libro, 'GastosCompartidos', gastoId, {
+      estado: anulado.estado,
+      anuladoPor: anulado.anuladoPor,
+      anuladoFecha: anulado.anuladoFecha,
+      anuladoMotivo: anulado.anuladoMotivo
+    });
+    return { ok: true, mensaje: 'Gasto anulado y cuotas retiradas de los saldos' };
+  } catch (error) {
+    return { ok: false, mensaje: error.message };
+  }
+}
+
 function apiListarTransaccionesRecientes(token) {
   try {
     exigirAdmin(token);
