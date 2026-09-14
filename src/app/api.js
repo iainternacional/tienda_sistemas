@@ -64,14 +64,23 @@ function productosVisibles() {
     });
 }
 
+function leerMovimientos(libro) {
+  return {
+    transacciones: leerTodo(libro, 'Transacciones'),
+    prestamos: leerTodo(libro, 'Prestamos'),
+    gastos: leerTodo(libro, 'GastosCompartidos'),
+    pagos: leerTodo(libro, 'Pagos')
+  };
+}
+
 function estadoDeUsuario(usuario) {
-  const transacciones = leerTodo(obtenerLibro(), 'Transacciones');
+  const movimientos = leerMovimientos(obtenerLibro());
   return {
     autenticado: true,
     nombre: usuario.nombre,
     rol: usuario.rol,
-    saldo: calcularSaldoUsuario(transacciones, usuario.id),
-    desglose: desglosarSaldoUsuario(transacciones, usuario.id),
+    saldo: calcularSaldoUsuario(movimientos, usuario.id),
+    desglose: desglosarSaldoUsuario(movimientos, usuario.id),
     productos: productosVisibles(),
     mensaje: ''
   };
