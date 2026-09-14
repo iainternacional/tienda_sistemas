@@ -100,6 +100,16 @@
       </div>
 
       <div class="tarjeta">
+        <h2>Registrar abono</h2>
+        <label for="usuarioPago">Comprador</label>
+        <select id="usuarioPago"></select>
+        <label for="valorPago">Valor abonado</label>
+        <input id="valorPago" type="number" min="1" step="1">
+        <button id="btnPago">Registrar abono</button>
+        <div id="avisoPago"></div>
+      </div>
+
+      <div class="tarjeta">
         <h2>Ultimos movimientos</h2>
         <table>
           <thead>
@@ -213,7 +223,7 @@
           document.getElementById('quien').textContent = 'Conectado como ' + estado.nombre;
           pintarProductos(estado.productos);
           google.script.run.withSuccessHandler(function (respuesta) {
-            ['usuarioDestino', 'usuarioPrestamo', 'participantesGasto'].forEach(function (idSelect) {
+            ['usuarioDestino', 'usuarioPrestamo', 'participantesGasto', 'usuarioPago'].forEach(function (idSelect) {
               var select = document.getElementById(idSelect);
               select.innerHTML = '';
               respuesta.usuarios.forEach(function (usuario) {
@@ -335,6 +345,20 @@
           valorTotal: Number(document.getElementById('valorGasto').value),
           participantes: seleccionados
         });
+      });
+
+      document.getElementById('btnPago').addEventListener('click', function () {
+        var boton = this;
+        boton.disabled = true;
+        google.script.run.withSuccessHandler(function (respuesta) {
+          boton.disabled = false;
+          mostrarAviso('avisoPago', respuesta.mensaje, !respuesta.ok);
+          if (respuesta.ok) { document.getElementById('valorPago').value = ''; }
+        }).apiRegistrarPago(
+          token,
+          document.getElementById('usuarioPago').value,
+          Number(document.getElementById('valorPago').value)
+        );
       });
 
       cargarTodo();

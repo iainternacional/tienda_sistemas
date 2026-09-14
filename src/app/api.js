@@ -433,6 +433,35 @@ function apiAnularGastoCompartido(token, gastoId, motivo) {
   }
 }
 
+function apiRegistrarPago(token, usuarioId, valor) {
+  try {
+    exigirAdmin(token);
+    const libro = obtenerLibro();
+    const usuarios = leerTodo(libro, 'Usuarios');
+    let destino = null;
+    for (let i = 0; i < usuarios.length; i++) {
+      if (usuarios[i].id === usuarioId && usuarios[i].activo === true) {
+        destino = usuarios[i];
+        break;
+      }
+    }
+    if (!destino) {
+      return { ok: false, mensaje: 'No se encontro el usuario' };
+    }
+    const pago = crearPago({
+      id: nuevoId(),
+      usuarioId: destino.id,
+      valor: Number(valor),
+      aplicadoA: [],
+      fecha: ahoraIso()
+    });
+    agregarFila(libro, 'Pagos', pago);
+    return { ok: true, mensaje: 'Abono registrado a ' + destino.nombre };
+  } catch (error) {
+    return { ok: false, mensaje: error.message };
+  }
+}
+
 function apiListarTransaccionesRecientes(token) {
   try {
     exigirAdmin(token);
