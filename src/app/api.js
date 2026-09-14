@@ -238,6 +238,66 @@ function apiRegistrarFiadoComoAdmin(token, usuarioId, productoId, cantidad) {
   }
 }
 
+function apiRegistrarPrestamo(token, usuarioId, valor) {
+  try {
+    exigirAdmin(token);
+    const libro = obtenerLibro();
+    const usuarios = leerTodo(libro, 'Usuarios');
+    let destino = null;
+    for (let i = 0; i < usuarios.length; i++) {
+      if (usuarios[i].id === usuarioId && usuarios[i].activo === true) {
+        destino = usuarios[i];
+        break;
+      }
+    }
+    if (!destino) {
+      return { ok: false, mensaje: 'No se encontro el usuario' };
+    }
+    const prestamo = crearPrestamo({
+      id: nuevoId(),
+      usuarioId: destino.id,
+      valor: Number(valor),
+      fecha: ahoraIso()
+    });
+    agregarFila(libro, 'Prestamos', prestamo);
+    return { ok: true, mensaje: 'Prestamo registrado a ' + destino.nombre };
+  } catch (error) {
+    return { ok: false, mensaje: error.message };
+  }
+}
+
+function apiAnularPrestamo(token, prestamoId, motivo) {
+  try {
+    const admin = exigirAdmin(token);
+    const libro = obtenerLibro();
+    const prestamos = leerTodo(libro, 'Prestamos');
+    let original = null;
+    for (let i = 0; i < prestamos.length; i++) {
+      if (prestamos[i].id === prestamoId) {
+        original = prestamos[i];
+        break;
+      }
+    }
+    if (!original) {
+      return { ok: false, mensaje: 'No se encontro el prestamo' };
+    }
+    const anulado = anularRegistro(original, {
+      anuladoPor: admin.nombre,
+      anuladoFecha: ahoraIso(),
+      anuladoMotivo: motivo
+    });
+    actualizarPorId(libro, 'Prestamos', prestamoId, {
+      estado: anulado.estado,
+      anuladoPor: anulado.anuladoPor,
+      anuladoFecha: anulado.anuladoFecha,
+      anuladoMotivo: anulado.anuladoMotivo
+    });
+    return { ok: true, mensaje: 'Prestamo anulado' };
+  } catch (error) {
+    return { ok: false, mensaje: error.message };
+  }
+}
+
 function apiListarTransaccionesRecientes(token) {
   try {
     exigirAdmin(token);

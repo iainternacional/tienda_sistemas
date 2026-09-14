@@ -60,6 +60,16 @@
       </div>
 
       <div class="tarjeta">
+        <h2>Prestar efectivo</h2>
+        <label for="usuarioPrestamo">Comprador</label>
+        <select id="usuarioPrestamo"></select>
+        <label for="valorPrestamo">Valor prestado</label>
+        <input id="valorPrestamo" type="number" min="1" step="1">
+        <button id="btnPrestamo">Registrar prestamo</button>
+        <div id="avisoPrestamo"></div>
+      </div>
+
+      <div class="tarjeta">
         <h2>Ultimos movimientos</h2>
         <table>
           <thead>
@@ -172,13 +182,15 @@
           document.getElementById('quien').textContent = 'Conectado como ' + estado.nombre;
           pintarProductos(estado.productos);
           google.script.run.withSuccessHandler(function (respuesta) {
-            var select = document.getElementById('usuarioDestino');
-            select.innerHTML = '';
-            respuesta.usuarios.forEach(function (usuario) {
-              var opcion = document.createElement('option');
-              opcion.value = usuario.id;
-              opcion.textContent = usuario.nombre;
-              select.appendChild(opcion);
+            ['usuarioDestino', 'usuarioPrestamo'].forEach(function (idSelect) {
+              var select = document.getElementById(idSelect);
+              select.innerHTML = '';
+              respuesta.usuarios.forEach(function (usuario) {
+                var opcion = document.createElement('option');
+                opcion.value = usuario.id;
+                opcion.textContent = usuario.nombre;
+                select.appendChild(opcion);
+              });
             });
           }).apiListarUsuarios(token);
           cargarMovimientos();
@@ -235,6 +247,20 @@
           document.getElementById('usuarioDestino').value,
           document.getElementById('productoAdmin').value,
           Number(document.getElementById('cantidadAdmin').value)
+        );
+      });
+
+      document.getElementById('btnPrestamo').addEventListener('click', function () {
+        var boton = this;
+        boton.disabled = true;
+        google.script.run.withSuccessHandler(function (respuesta) {
+          boton.disabled = false;
+          mostrarAviso('avisoPrestamo', respuesta.mensaje, !respuesta.ok);
+          if (respuesta.ok) { document.getElementById('valorPrestamo').value = ''; }
+        }).apiRegistrarPrestamo(
+          token,
+          document.getElementById('usuarioPrestamo').value,
+          Number(document.getElementById('valorPrestamo').value)
         );
       });
 
