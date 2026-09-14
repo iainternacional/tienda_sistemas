@@ -64,14 +64,23 @@ function productosVisibles() {
     });
 }
 
+function leerMovimientos(libro) {
+  return {
+    transacciones: leerTodo(libro, 'Transacciones'),
+    prestamos: leerTodo(libro, 'Prestamos'),
+    gastos: leerTodo(libro, 'GastosCompartidos'),
+    pagos: leerTodo(libro, 'Pagos')
+  };
+}
+
 function estadoDeUsuario(usuario) {
-  const transacciones = leerTodo(obtenerLibro(), 'Transacciones');
+  const movimientos = leerMovimientos(obtenerLibro());
   return {
     autenticado: true,
     nombre: usuario.nombre,
     rol: usuario.rol,
-    saldo: calcularSaldoUsuario(transacciones, usuario.id),
-    desglose: desglosarSaldoUsuario(transacciones, usuario.id),
+    saldo: calcularSaldoUsuario(movimientos, usuario.id),
+    desglose: desglosarSaldoUsuario(movimientos, usuario.id),
     productos: productosVisibles(),
     mensaje: ''
   };
@@ -238,31 +247,359 @@ function apiRegistrarFiadoComoAdmin(token, usuarioId, productoId, cantidad) {
   }
 }
 
-function apiListarTransaccionesRecientes(token) {
+function apiRegistrarPrestamo(token, usuarioId, valor) {
   try {
     exigirAdmin(token);
-    const usuarios = leerTodo(obtenerLibro(), 'Usuarios');
-    const nombrePorId = {};
-    usuarios.forEach(function (usuario) { nombrePorId[usuario.id] = usuario.nombre; });
-    const transacciones = leerTodo(obtenerLibro(), 'Transacciones')
-      .sort(function (a, b) { return String(b.fecha).localeCompare(String(a.fecha)); })
-      .slice(0, 50)
-      .map(function (transaccion) {
-        return {
-          id: transaccion.id,
-          fecha: transaccion.fecha,
-          usuario: nombrePorId[transaccion.usuarioId] || transaccion.usuarioId,
-          concepto: transaccion.productoNombre,
-          cantidad: transaccion.cantidad,
-          valorTotal: transaccion.valorTotal,
-          origen: transaccion.origen,
-          estado: transaccion.estado
-        };
-      });
-    return { ok: true, mensaje: '', transacciones: transacciones };
+    const libro = obtenerLibro();
+    const usuarios = leerTodo(libro, 'Usuarios');
+    let destino = null;
+    for (let i = 0; i < usuarios.length; i++) {
+      if (usuarios[i].id === usuarioId && usuarios[i].activo === true) {
+        destino = usuarios[i];
+        break;
+      }
+    }
+    if (!destino) {
+      return { ok: false, mensaje: 'No se encontro el usuario' };
+    }
+    const prestamo = crearPrestamo({
+      id: nuevoId(),
+      usuarioId: destino.id,
+      valor: Number(valor),
+      fecha: ahoraIso()
+    });
+    agregarFila(libro, 'Prestamos', prestamo);
+    return { ok: true, mensaje: 'Prestamo registrado a ' + destino.nombre };
   } catch (error) {
-    return { ok: false, mensaje: error.message, transacciones: [] };
+    return { ok: false, mensaje: error.message };
   }
+}
+
+function apiAnularPrestamo(token, prestamoId, motivo) {
+  try {
+    const admin = exigirAdmin(token);
+    const libro = obtenerLibro();
+    const prestamos = leerTodo(libro, 'Prestamos');
+    let original = null;
+    for (let i = 0; i < prestamos.length; i++) {
+      if (prestamos[i].id === prestamoId) {
+        original = prestamos[i];
+        break;
+      }
+    }
+    if (!original) {
+      return { ok: false, mensaje: 'No se encontro el prestamo' };
+    }
+    const anulado = anularRegistro(original, {
+      anuladoPor: admin.nombre,
+      anuladoFecha: ahoraIso(),
+      anuladoMotivo: motivo
+    });
+    actualizarPorId(libro, 'Prestamos', prestamoId, {
+      estado: anulado.estado,
+      anuladoPor: anulado.anuladoPor,
+      anuladoFecha: anulado.anuladoFecha,
+      anuladoMotivo: anulado.anuladoMotivo
+    });
+    return { ok: true, mensaje: 'Prestamo anulado' };
+  } catch (error) {
+    return { ok: false, mensaje: error.message };
+  }
+}
+
+function apiRegistrarPerdida(token, productoId, cantidad, motivo) {
+  const bloqueo = LockService.getScriptLock();
+  bloqueo.waitLock(30000);
+  try {
+    exigirAdmin(token);
+    const libro = obtenerLibro();
+    const productos = leerTodo(libro, 'Productos');
+    let producto = null;
+    for (let i = 0; i < productos.length; i++) {
+      if (productos[i].id === productoId) {
+        producto = productos[i];
+        break;
+      }
+    }
+    if (!producto || producto.activo !== true) {
+      return { ok: false, mensaje: 'El producto no existe o esta inactivo', productos: [] };
+    }
+    const perdida = crearPerdida({
+      id: nuevoId(),
+      producto: producto,
+      cantidad: Number(cantidad),
+      motivo: motivo,
+      fecha: ahoraIso()
+    });
+    const actualizado = descontarStock(producto, Number(cantidad));
+    agregarFila(libro, 'Perdidas', perdida);
+    actualizarPorId(libro, 'Productos', producto.id, { stockActual: actualizado.stockActual });
+    return { ok: true, mensaje: 'Perdida registrada: ' + perdida.cantidad + ' x ' + perdida.productoNombre, productos: productosVisibles() };
+  } catch (error) {
+    return { ok: false, mensaje: error.message, productos: [] };
+  } finally {
+    bloqueo.releaseLock();
+  }
+}
+
+function apiAnularPerdida(token, perdidaId, motivo) {
+  const bloqueo = LockService.getScriptLock();
+  bloqueo.waitLock(30000);
+  try {
+    const admin = exigirAdmin(token);
+    const libro = obtenerLibro();
+    const perdidas = leerTodo(libro, 'Perdidas');
+    let original = null;
+    for (let i = 0; i < perdidas.length; i++) {
+      if (perdidas[i].id === perdidaId) {
+        original = perdidas[i];
+        break;
+      }
+    }
+    if (!original) {
+      return { ok: false, mensaje: 'No se encontro la perdida', productos: [] };
+    }
+    const anulado = anularRegistro(original, {
+      anuladoPor: admin.nombre,
+      anuladoFecha: ahoraIso(),
+      anuladoMotivo: motivo
+    });
+    actualizarPorId(libro, 'Perdidas', perdidaId, {
+      estado: anulado.estado,
+      anuladoPor: anulado.anuladoPor,
+      anuladoFecha: anulado.anuladoFecha,
+      anuladoMotivo: anulado.anuladoMotivo
+    });
+    const productos = leerTodo(libro, 'Productos');
+    for (let j = 0; j < productos.length; j++) {
+      if (productos[j].id === original.productoId) {
+        actualizarPorId(libro, 'Productos', original.productoId, {
+          stockActual: productos[j].stockActual + original.cantidad
+        });
+        break;
+      }
+    }
+    return { ok: true, mensaje: 'Perdida anulada y stock devuelto', productos: productosVisibles() };
+  } catch (error) {
+    return { ok: false, mensaje: error.message, productos: [] };
+  } finally {
+    bloqueo.releaseLock();
+  }
+}
+
+function apiRegistrarGastoCompartido(token, datos) {
+  try {
+    exigirAdmin(token);
+    const libro = obtenerLibro();
+    const gasto = crearGastoCompartido({
+      id: nuevoId(),
+      motivo: String(datos.motivo || '').trim(),
+      descripcion: datos.descripcion,
+      valorTotal: Number(datos.valorTotal),
+      participantes: datos.participantes || [],
+      fecha: ahoraIso()
+    });
+    agregarFila(libro, 'GastosCompartidos', gasto);
+    const cuotas = cuotasDeGasto(gasto);
+    return {
+      ok: true,
+      mensaje: 'Gasto repartido entre ' + cuotas.length + ' personas'
+    };
+  } catch (error) {
+    return { ok: false, mensaje: error.message };
+  }
+}
+
+function apiAnularGastoCompartido(token, gastoId, motivo) {
+  try {
+    const admin = exigirAdmin(token);
+    const libro = obtenerLibro();
+    const gastos = leerTodo(libro, 'GastosCompartidos');
+    let original = null;
+    for (let i = 0; i < gastos.length; i++) {
+      if (gastos[i].id === gastoId) {
+        original = gastos[i];
+        break;
+      }
+    }
+    if (!original) {
+      return { ok: false, mensaje: 'No se encontro el gasto compartido' };
+    }
+    const anulado = anularRegistro(original, {
+      anuladoPor: admin.nombre,
+      anuladoFecha: ahoraIso(),
+      anuladoMotivo: motivo
+    });
+    actualizarPorId(libro, 'GastosCompartidos', gastoId, {
+      estado: anulado.estado,
+      anuladoPor: anulado.anuladoPor,
+      anuladoFecha: anulado.anuladoFecha,
+      anuladoMotivo: anulado.anuladoMotivo
+    });
+    return { ok: true, mensaje: 'Gasto anulado y cuotas retiradas de los saldos' };
+  } catch (error) {
+    return { ok: false, mensaje: error.message };
+  }
+}
+
+function apiRegistrarPago(token, usuarioId, valor) {
+  try {
+    exigirAdmin(token);
+    const libro = obtenerLibro();
+    const usuarios = leerTodo(libro, 'Usuarios');
+    let destino = null;
+    for (let i = 0; i < usuarios.length; i++) {
+      if (usuarios[i].id === usuarioId && usuarios[i].activo === true) {
+        destino = usuarios[i];
+        break;
+      }
+    }
+    if (!destino) {
+      return { ok: false, mensaje: 'No se encontro el usuario' };
+    }
+    const pago = crearPago({
+      id: nuevoId(),
+      usuarioId: destino.id,
+      valor: Number(valor),
+      aplicadoA: [],
+      fecha: ahoraIso()
+    });
+    agregarFila(libro, 'Pagos', pago);
+    return { ok: true, mensaje: 'Abono registrado a ' + destino.nombre };
+  } catch (error) {
+    return { ok: false, mensaje: error.message };
+  }
+}
+
+function apiReportes(token, desde, hasta) {
+  try {
+    exigirAdmin(token);
+    const libro = obtenerLibro();
+    const movimientos = leerMovimientos(libro);
+    const productos = leerTodo(libro, 'Productos');
+    const usuarios = leerTodo(libro, 'Usuarios');
+    const perdidas = leerTodo(libro, 'Perdidas');
+    return {
+      ok: true,
+      mensaje: '',
+      ganancia: reporteGanancia(movimientos.transacciones, productos, desde, hasta),
+      perdidas: reportePerdidas(perdidas, desde, hasta),
+      cartera: reporteCartera(movimientos, usuarios),
+      gastos: reporteGastosCompartidos(movimientos.gastos)
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      mensaje: error.message,
+      ganancia: { total: 0, estimado: false, porProducto: [] },
+      perdidas: { total: 0, lineas: [] },
+      cartera: { total: 0, porUsuario: [] },
+      gastos: []
+    };
+  }
+}
+
+function apiAnularPago(token, pagoId, motivo) {
+  try {
+    const admin = exigirAdmin(token);
+    const libro = obtenerLibro();
+    const pagos = leerTodo(libro, 'Pagos');
+    let original = null;
+    for (let i = 0; i < pagos.length; i++) {
+      if (pagos[i].id === pagoId) {
+        original = pagos[i];
+        break;
+      }
+    }
+    if (!original) {
+      return { ok: false, mensaje: 'No se encontro el abono' };
+    }
+    const anulado = anularRegistro(original, {
+      anuladoPor: admin.nombre,
+      anuladoFecha: ahoraIso(),
+      anuladoMotivo: motivo
+    });
+    actualizarPorId(libro, 'Pagos', pagoId, {
+      estado: anulado.estado,
+      anuladoPor: anulado.anuladoPor,
+      anuladoFecha: anulado.anuladoFecha,
+      anuladoMotivo: anulado.anuladoMotivo
+    });
+    return { ok: true, mensaje: 'Abono anulado' };
+  } catch (error) {
+    return { ok: false, mensaje: error.message };
+  }
+}
+
+function apiListarMovimientosRecientes(token) {
+  try {
+    exigirAdmin(token);
+    const libro = obtenerLibro();
+    const nombrePorId = {};
+    leerTodo(libro, 'Usuarios').forEach(function (usuario) {
+      nombrePorId[usuario.id] = usuario.nombre;
+    });
+    const movimientos = [];
+
+    leerTodo(libro, 'Transacciones').forEach(function (registro) {
+      movimientos.push({
+        id: registro.id, tipo: 'transaccion', fecha: registro.fecha,
+        quien: nombrePorId[registro.usuarioId] || registro.usuarioId,
+        concepto: registro.productoNombre + ' x' + registro.cantidad,
+        valor: registro.valorTotal, estado: registro.estado
+      });
+    });
+
+    leerTodo(libro, 'Prestamos').forEach(function (registro) {
+      movimientos.push({
+        id: registro.id, tipo: 'prestamo', fecha: registro.fecha,
+        quien: nombrePorId[registro.usuarioId] || registro.usuarioId,
+        concepto: 'Prestamo en efectivo',
+        valor: registro.valor, estado: registro.estado
+      });
+    });
+
+    leerTodo(libro, 'Pagos').forEach(function (registro) {
+      movimientos.push({
+        id: registro.id, tipo: 'pago', fecha: registro.fecha,
+        quien: nombrePorId[registro.usuarioId] || registro.usuarioId,
+        concepto: 'Abono',
+        valor: -registro.valor, estado: registro.estado
+      });
+    });
+
+    leerTodo(libro, 'Perdidas').forEach(function (registro) {
+      movimientos.push({
+        id: registro.id, tipo: 'perdida', fecha: registro.fecha,
+        quien: '-',
+        concepto: 'Perdida de ' + registro.productoNombre + ' x' + registro.cantidad + ' (' + registro.motivo + ')',
+        valor: registro.valor, estado: registro.estado
+      });
+    });
+
+    leerTodo(libro, 'GastosCompartidos').forEach(function (registro) {
+      movimientos.push({
+        id: registro.id, tipo: 'gasto', fecha: registro.fecha,
+        quien: '-',
+        concepto: 'Gasto ' + registro.motivo + (registro.descripcion ? ': ' + registro.descripcion : ''),
+        valor: registro.valorTotal, estado: registro.estado
+      });
+    });
+
+    movimientos.sort(function (a, b) { return String(b.fecha).localeCompare(String(a.fecha)); });
+    return { ok: true, mensaje: '', movimientos: movimientos.slice(0, 50) };
+  } catch (error) {
+    return { ok: false, mensaje: error.message, movimientos: [] };
+  }
+}
+
+function apiAnularMovimiento(token, tipo, movimientoId, motivo) {
+  if (tipo === 'transaccion') { return apiAnularTransaccion(token, movimientoId, motivo); }
+  if (tipo === 'prestamo') { return apiAnularPrestamo(token, movimientoId, motivo); }
+  if (tipo === 'pago') { return apiAnularPago(token, movimientoId, motivo); }
+  if (tipo === 'perdida') { return apiAnularPerdida(token, movimientoId, motivo); }
+  if (tipo === 'gasto') { return apiAnularGastoCompartido(token, movimientoId, motivo); }
+  return { ok: false, mensaje: 'Tipo de movimiento desconocido: ' + tipo };
 }
 
 function apiAnularTransaccion(token, transaccionId, motivo) {

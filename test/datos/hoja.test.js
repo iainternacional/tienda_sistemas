@@ -4,8 +4,10 @@ const { ESQUEMA, filaAObjeto, objetoAFila } = require('../../src/datos/esquema.j
 const { inicializarLibro, leerTodo, agregarFila, actualizarPorId } = require('../../src/datos/hoja.js');
 const { crearLibroFalso } = require('../ayudas/libroFalso.js');
 
-test('el esquema define las tres hojas de la fase 1', () => {
-  assert.deepStrictEqual(Object.keys(ESQUEMA).sort(), ['Productos', 'Transacciones', 'Usuarios']);
+test('el esquema define una hoja por entidad', () => {
+  assert.deepStrictEqual(Object.keys(ESQUEMA).sort(), [
+    'GastosCompartidos', 'Pagos', 'Perdidas', 'Prestamos', 'Productos', 'Transacciones', 'Usuarios'
+  ]);
   assert.strictEqual(ESQUEMA.Productos[0], 'id');
 });
 
