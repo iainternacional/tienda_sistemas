@@ -105,6 +105,53 @@ function crearUsuarioComprador(datos, funcionHash) {
   };
 }
 
+function validarUsuarioCorporativoNuevo(datos) {
+  const errores = [];
+  const email = textoComparable(datos.email);
+  if (textoComparable(datos.nombre) === '') {
+    errores.push('El nombre es obligatorio');
+  }
+  if (email === '') {
+    errores.push('El correo es obligatorio');
+  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    errores.push('El correo no tiene un formato valido');
+  }
+  return { valido: errores.length === 0, errores: errores };
+}
+
+function crearUsuarioCorporativo(datos) {
+  const validacion = validarUsuarioCorporativoNuevo(datos);
+  if (!validacion.valido) {
+    throw new Error(validacion.errores.join('. '));
+  }
+  return {
+    id: datos.id,
+    nombre: String(datos.nombre).trim(),
+    area: String(datos.area === undefined || datos.area === null ? '' : datos.area).trim(),
+    rol: 'comprador',
+    tipoLogin: 'google_corporativo',
+    emailCorporativo: textoComparable(datos.email),
+    usuario: '',
+    salt: '',
+    claveHash: '',
+    esPseudoUsuario: false,
+    activo: true
+  };
+}
+
+function buscarUsuarioPorEmailCorporativo(usuarios, email) {
+  const buscado = textoComparable(email);
+  if (buscado === '') {
+    return null;
+  }
+  for (let i = 0; i < usuarios.length; i++) {
+    if (textoComparable(usuarios[i].emailCorporativo) === buscado) {
+      return usuarios[i];
+    }
+  }
+  return null;
+}
+
 if (typeof module !== 'undefined') {
   module.exports = {
     hashClave,
@@ -114,6 +161,9 @@ if (typeof module !== 'undefined') {
     esAdmin,
     buscarUsuarioPorNombreDeUsuario,
     validarUsuarioNuevo,
-    crearUsuarioComprador
+    crearUsuarioComprador,
+    validarUsuarioCorporativoNuevo,
+    crearUsuarioCorporativo,
+    buscarUsuarioPorEmailCorporativo
   };
 }

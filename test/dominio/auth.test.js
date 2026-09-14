@@ -3,7 +3,8 @@ const assert = require('node:assert');
 const crypto = require('node:crypto');
 const {
   hashClave, verificarClave, resolverUsuarioPorEmail, resolverUsuarioPorClave, esAdmin,
-  validarUsuarioNuevo, crearUsuarioComprador, buscarUsuarioPorNombreDeUsuario
+  validarUsuarioNuevo, crearUsuarioComprador, buscarUsuarioPorNombreDeUsuario,
+  validarUsuarioCorporativoNuevo, crearUsuarioCorporativo, buscarUsuarioPorEmailCorporativo
 } = require('../../src/dominio/auth.js');
 
 function hashDePrueba(texto) {
@@ -176,4 +177,84 @@ test('buscarUsuarioPorNombreDeUsuario tambien encuentra inactivos para no recicl
 test('buscarUsuarioPorNombreDeUsuario devuelve null si no existe o viene vacio', () => {
   assert.strictEqual(buscarUsuarioPorNombreDeUsuario(USUARIOS, 'nadie'), null);
   assert.strictEqual(buscarUsuarioPorNombreDeUsuario(USUARIOS, ''), null);
+});
+
+const DATOS_CORPORATIVOS_VALIDOS = {
+  id: 'u10', nombre: 'Laura Gomez', area: 'Compras', email: 'laura.gomez@ipuc.org.co'
+};
+
+test('validarUsuarioCorporativoNuevo acepta datos completos', () => {
+  assert.strictEqual(validarUsuarioCorporativoNuevo(DATOS_CORPORATIVOS_VALIDOS).valido, true);
+});
+
+test('validarUsuarioCorporativoNuevo exige el nombre', () => {
+  const resultado = validarUsuarioCorporativoNuevo(Object.assign({}, DATOS_CORPORATIVOS_VALIDOS, { nombre: '   ' }));
+  assert.strictEqual(resultado.valido, false);
+  assert.match(resultado.errores.join('. '), /nombre/i);
+});
+
+test('validarUsuarioCorporativoNuevo exige el correo', () => {
+  const resultado = validarUsuarioCorporativoNuevo(Object.assign({}, DATOS_CORPORATIVOS_VALIDOS, { email: '' }));
+  assert.strictEqual(resultado.valido, false);
+  assert.match(resultado.errores.join('. '), /correo/i);
+});
+
+test('validarUsuarioCorporativoNuevo rechaza un correo sin formato valido', () => {
+  const resultado = validarUsuarioCorporativoNuevo(Object.assign({}, DATOS_CORPORATIVOS_VALIDOS, { email: 'laura.gomez' }));
+  assert.strictEqual(resultado.valido, false);
+  assert.match(resultado.errores.join('. '), /correo/i);
+});
+
+test('crearUsuarioCorporativo arma un comprador con login de google corporativo', () => {
+  const creado = crearUsuarioCorporativo(DATOS_CORPORATIVOS_VALIDOS);
+  assert.strictEqual(creado.id, 'u10');
+  assert.strictEqual(creado.nombre, 'Laura Gomez');
+  assert.strictEqual(creado.area, 'Compras');
+  assert.strictEqual(creado.rol, 'comprador');
+  assert.strictEqual(creado.tipoLogin, 'google_corporativo');
+  assert.strictEqual(creado.emailCorporativo, 'laura.gomez@ipuc.org.co');
+  assert.strictEqual(creado.usuario, '');
+  assert.strictEqual(creado.claveHash, '');
+  assert.strictEqual(creado.esPseudoUsuario, false);
+  assert.strictEqual(creado.activo, true);
+});
+
+test('crearUsuarioCorporativo normaliza el correo y recorta el nombre', () => {
+  const creado = crearUsuarioCorporativo(
+    Object.assign({}, DATOS_CORPORATIVOS_VALIDOS, { email: '  LAURA.GOMEZ@ipuc.org.co ', nombre: '  Laura Gomez  ' })
+  );
+  assert.strictEqual(creado.emailCorporativo, 'laura.gomez@ipuc.org.co');
+  assert.strictEqual(creado.nombre, 'Laura Gomez');
+});
+
+test('crearUsuarioCorporativo falla si los datos no son validos', () => {
+  assert.throws(
+    () => crearUsuarioCorporativo(Object.assign({}, DATOS_CORPORATIVOS_VALIDOS, { email: 'no-es-correo' })),
+    /correo/i
+  );
+});
+
+test('el comprador corporativo recien creado puede iniciar sesion por su correo', () => {
+  const creado = crearUsuarioCorporativo(DATOS_CORPORATIVOS_VALIDOS);
+  const padron = USUARIOS.concat([creado]);
+  assert.strictEqual(resolverUsuarioPorEmail(padron, 'laura.gomez@ipuc.org.co').id, 'u10');
+});
+
+test('buscarUsuarioPorEmailCorporativo encuentra ignorando mayusculas y espacios', () => {
+  const conCorporativo = USUARIOS.concat([
+    { id: 'u11', nombre: 'Laura', usuario: '', emailCorporativo: 'laura@ipuc.org.co', esPseudoUsuario: false, activo: true }
+  ]);
+  assert.strictEqual(buscarUsuarioPorEmailCorporativo(conCorporativo, '  LAURA@ipuc.org.co ').id, 'u11');
+});
+
+test('buscarUsuarioPorEmailCorporativo tambien encuentra inactivos para no reciclar logins', () => {
+  const conInactivo = USUARIOS.concat([
+    { id: 'u12', nombre: 'Ana', usuario: '', emailCorporativo: 'ana@ipuc.org.co', esPseudoUsuario: false, activo: false }
+  ]);
+  assert.strictEqual(buscarUsuarioPorEmailCorporativo(conInactivo, 'ana@ipuc.org.co').id, 'u12');
+});
+
+test('buscarUsuarioPorEmailCorporativo devuelve null si no existe o viene vacio', () => {
+  assert.strictEqual(buscarUsuarioPorEmailCorporativo(USUARIOS, 'nadie@ipuc.org.co'), null);
+  assert.strictEqual(buscarUsuarioPorEmailCorporativo(USUARIOS, ''), null);
 });
