@@ -499,31 +499,107 @@ function apiReportes(token, desde, hasta) {
   }
 }
 
-function apiListarTransaccionesRecientes(token) {
+function apiAnularPago(token, pagoId, motivo) {
+  try {
+    const admin = exigirAdmin(token);
+    const libro = obtenerLibro();
+    const pagos = leerTodo(libro, 'Pagos');
+    let original = null;
+    for (let i = 0; i < pagos.length; i++) {
+      if (pagos[i].id === pagoId) {
+        original = pagos[i];
+        break;
+      }
+    }
+    if (!original) {
+      return { ok: false, mensaje: 'No se encontro el abono' };
+    }
+    const anulado = anularRegistro(original, {
+      anuladoPor: admin.nombre,
+      anuladoFecha: ahoraIso(),
+      anuladoMotivo: motivo
+    });
+    actualizarPorId(libro, 'Pagos', pagoId, {
+      estado: anulado.estado,
+      anuladoPor: anulado.anuladoPor,
+      anuladoFecha: anulado.anuladoFecha,
+      anuladoMotivo: anulado.anuladoMotivo
+    });
+    return { ok: true, mensaje: 'Abono anulado' };
+  } catch (error) {
+    return { ok: false, mensaje: error.message };
+  }
+}
+
+function apiListarMovimientosRecientes(token) {
   try {
     exigirAdmin(token);
-    const usuarios = leerTodo(obtenerLibro(), 'Usuarios');
+    const libro = obtenerLibro();
     const nombrePorId = {};
-    usuarios.forEach(function (usuario) { nombrePorId[usuario.id] = usuario.nombre; });
-    const transacciones = leerTodo(obtenerLibro(), 'Transacciones')
-      .sort(function (a, b) { return String(b.fecha).localeCompare(String(a.fecha)); })
-      .slice(0, 50)
-      .map(function (transaccion) {
-        return {
-          id: transaccion.id,
-          fecha: transaccion.fecha,
-          usuario: nombrePorId[transaccion.usuarioId] || transaccion.usuarioId,
-          concepto: transaccion.productoNombre,
-          cantidad: transaccion.cantidad,
-          valorTotal: transaccion.valorTotal,
-          origen: transaccion.origen,
-          estado: transaccion.estado
-        };
+    leerTodo(libro, 'Usuarios').forEach(function (usuario) {
+      nombrePorId[usuario.id] = usuario.nombre;
+    });
+    const movimientos = [];
+
+    leerTodo(libro, 'Transacciones').forEach(function (registro) {
+      movimientos.push({
+        id: registro.id, tipo: 'transaccion', fecha: registro.fecha,
+        quien: nombrePorId[registro.usuarioId] || registro.usuarioId,
+        concepto: registro.productoNombre + ' x' + registro.cantidad,
+        valor: registro.valorTotal, estado: registro.estado
       });
-    return { ok: true, mensaje: '', transacciones: transacciones };
+    });
+
+    leerTodo(libro, 'Prestamos').forEach(function (registro) {
+      movimientos.push({
+        id: registro.id, tipo: 'prestamo', fecha: registro.fecha,
+        quien: nombrePorId[registro.usuarioId] || registro.usuarioId,
+        concepto: 'Prestamo en efectivo',
+        valor: registro.valor, estado: registro.estado
+      });
+    });
+
+    leerTodo(libro, 'Pagos').forEach(function (registro) {
+      movimientos.push({
+        id: registro.id, tipo: 'pago', fecha: registro.fecha,
+        quien: nombrePorId[registro.usuarioId] || registro.usuarioId,
+        concepto: 'Abono',
+        valor: -registro.valor, estado: registro.estado
+      });
+    });
+
+    leerTodo(libro, 'Perdidas').forEach(function (registro) {
+      movimientos.push({
+        id: registro.id, tipo: 'perdida', fecha: registro.fecha,
+        quien: '-',
+        concepto: 'Perdida de ' + registro.productoNombre + ' x' + registro.cantidad + ' (' + registro.motivo + ')',
+        valor: registro.valor, estado: registro.estado
+      });
+    });
+
+    leerTodo(libro, 'GastosCompartidos').forEach(function (registro) {
+      movimientos.push({
+        id: registro.id, tipo: 'gasto', fecha: registro.fecha,
+        quien: '-',
+        concepto: 'Gasto ' + registro.motivo + (registro.descripcion ? ': ' + registro.descripcion : ''),
+        valor: registro.valorTotal, estado: registro.estado
+      });
+    });
+
+    movimientos.sort(function (a, b) { return String(b.fecha).localeCompare(String(a.fecha)); });
+    return { ok: true, mensaje: '', movimientos: movimientos.slice(0, 50) };
   } catch (error) {
-    return { ok: false, mensaje: error.message, transacciones: [] };
+    return { ok: false, mensaje: error.message, movimientos: [] };
   }
+}
+
+function apiAnularMovimiento(token, tipo, movimientoId, motivo) {
+  if (tipo === 'transaccion') { return apiAnularTransaccion(token, movimientoId, motivo); }
+  if (tipo === 'prestamo') { return apiAnularPrestamo(token, movimientoId, motivo); }
+  if (tipo === 'pago') { return apiAnularPago(token, movimientoId, motivo); }
+  if (tipo === 'perdida') { return apiAnularPerdida(token, movimientoId, motivo); }
+  if (tipo === 'gasto') { return apiAnularGastoCompartido(token, movimientoId, motivo); }
+  return { ok: false, mensaje: 'Tipo de movimiento desconocido: ' + tipo };
 }
 
 function apiAnularTransaccion(token, transaccionId, motivo) {

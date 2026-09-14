@@ -145,7 +145,7 @@
         <h2>Ultimos movimientos</h2>
         <table>
           <thead>
-            <tr><th>Fecha</th><th>Quien</th><th>Producto</th><th class="valor">Valor</th><th></th></tr>
+            <tr><th>Fecha</th><th>Quien</th><th>Concepto</th><th class="valor">Valor</th><th></th></tr>
           </thead>
           <tbody id="movimientos"></tbody>
         </table>
@@ -207,9 +207,9 @@
         google.script.run.withSuccessHandler(function (respuesta) {
           var cuerpo = document.getElementById('movimientos');
           cuerpo.innerHTML = '';
-          respuesta.transacciones.forEach(function (movimiento) {
+          respuesta.movimientos.forEach(function (movimiento) {
             var fila = document.createElement('tr');
-            [fechaCorta(movimiento.fecha), movimiento.usuario, movimiento.concepto + ' x' + movimiento.cantidad, pesos(movimiento.valorTotal)]
+            [fechaCorta(movimiento.fecha), movimiento.quien, movimiento.concepto, pesos(movimiento.valor)]
               .forEach(function (texto, indice) {
                 var celda = document.createElement('td');
                 if (indice === 3) { celda.className = 'valor'; }
@@ -234,14 +234,14 @@
                 google.script.run.withSuccessHandler(function (resultado) {
                   mostrarAviso('avisoAnulacion', resultado.mensaje, !resultado.ok);
                   cargarTodo();
-                }).apiAnularTransaccion(token, movimiento.id, motivo);
+                }).apiAnularMovimiento(token, movimiento.tipo, movimiento.id, motivo);
               });
               celdaAccion.appendChild(boton);
             }
             fila.appendChild(celdaAccion);
             cuerpo.appendChild(fila);
           });
-        }).apiListarTransaccionesRecientes(token);
+        }).apiListarMovimientosRecientes(token);
       }
 
       function cargarTodo() {
