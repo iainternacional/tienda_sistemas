@@ -4,6 +4,8 @@ if (typeof require !== 'undefined') {
   var calcularValorTotal = dineroModulo.calcularValorTotal;
   var productosModulo = require('./productos.js');
   var hayStockSuficiente = productosModulo.hayStockSuficiente;
+  var anulacionModulo = require('./anulacion.js');
+  var anularRegistro = anulacionModulo.anularRegistro;
 }
 
 const ORIGENES_VALIDOS = ['autoregistro', 'admin'];
@@ -41,7 +43,8 @@ function crearTransaccionFiado(datos) {
     estado: 'pendiente',
     anuladoPor: '',
     anuladoFecha: '',
-    anuladoMotivo: ''
+    anuladoMotivo: '',
+    costoUnitario: datos.producto.costo
   };
 }
 
@@ -50,18 +53,7 @@ function esActiva(transaccion) {
 }
 
 function anularTransaccion(transaccion, datos) {
-  if (transaccion.estado === 'anulado') {
-    throw new Error('La transaccion ya esta anulada');
-  }
-  if (!datos.anuladoMotivo || String(datos.anuladoMotivo).trim() === '') {
-    throw new Error('Debe indicar el motivo de la anulacion');
-  }
-  return Object.assign({}, transaccion, {
-    estado: 'anulado',
-    anuladoPor: datos.anuladoPor,
-    anuladoFecha: datos.anuladoFecha,
-    anuladoMotivo: String(datos.anuladoMotivo).trim()
-  });
+  return anularRegistro(transaccion, datos);
 }
 
 if (typeof module !== 'undefined') {

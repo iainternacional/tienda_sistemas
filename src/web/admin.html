@@ -48,6 +48,21 @@
       </div>
 
       <div class="tarjeta">
+        <h2>Nuevo comprador</h2>
+        <p class="sub">Entregue el usuario y la clave a la persona para que entre a "Mi cuenta".</p>
+        <label for="nombreComprador">Nombre</label>
+        <input id="nombreComprador" type="text">
+        <label for="areaComprador">Area</label>
+        <input id="areaComprador" type="text">
+        <label for="usuarioComprador">Usuario</label>
+        <input id="usuarioComprador" type="text" autocomplete="off">
+        <label for="claveComprador">Clave</label>
+        <input id="claveComprador" type="text" autocomplete="off">
+        <button id="btnCrearComprador">Crear comprador</button>
+        <div id="avisoComprador"></div>
+      </div>
+
+      <div class="tarjeta">
         <h2>Registrar fiado a nombre de alguien</h2>
         <label for="usuarioDestino">Comprador</label>
         <select id="usuarioDestino"></select>
@@ -60,10 +75,92 @@
       </div>
 
       <div class="tarjeta">
+        <h2>Prestar efectivo</h2>
+        <label for="usuarioPrestamo">Comprador</label>
+        <select id="usuarioPrestamo"></select>
+        <label for="valorPrestamo">Valor prestado</label>
+        <input id="valorPrestamo" type="number" min="1" step="1">
+        <button id="btnPrestamo">Registrar prestamo</button>
+        <div id="avisoPrestamo"></div>
+      </div>
+
+      <div class="tarjeta">
+        <h2>Registrar perdida</h2>
+        <label for="productoPerdida">Producto</label>
+        <select id="productoPerdida"></select>
+        <label for="cantidadPerdida">Cantidad</label>
+        <input id="cantidadPerdida" type="number" min="1" step="1" value="1">
+        <label for="motivoPerdida">Motivo</label>
+        <input id="motivoPerdida" type="text">
+        <button id="btnPerdida">Registrar perdida</button>
+        <div id="avisoPerdida"></div>
+      </div>
+
+      <div class="tarjeta">
+        <h2>Gasto compartido</h2>
+        <label for="motivoGasto">Motivo</label>
+        <select id="motivoGasto">
+          <option value="bienvenida">Bienvenida</option>
+          <option value="cumpleanos">Cumpleanos</option>
+          <option value="otro">Otro</option>
+        </select>
+        <label for="descripcionGasto">Descripcion</label>
+        <input id="descripcionGasto" type="text">
+        <label for="valorGasto">Valor total</label>
+        <input id="valorGasto" type="number" min="1" step="1">
+        <label for="participantesGasto">Participantes (mantenga Ctrl para elegir varios)</label>
+        <select id="participantesGasto" multiple size="8"></select>
+        <button id="btnGasto">Repartir gasto</button>
+        <div id="avisoGasto"></div>
+      </div>
+
+      <div class="tarjeta">
+        <h2>Registrar abono</h2>
+        <label for="usuarioPago">Comprador</label>
+        <select id="usuarioPago"></select>
+        <label for="valorPago">Valor abonado</label>
+        <input id="valorPago" type="number" min="1" step="1">
+        <button id="btnPago">Registrar abono</button>
+        <div id="avisoPago"></div>
+      </div>
+
+      <div class="tarjeta">
+        <h2>Reportes</h2>
+        <label for="desdeReporte">Desde</label>
+        <input id="desdeReporte" type="date">
+        <label for="hastaReporte">Hasta</label>
+        <input id="hastaReporte" type="date">
+        <button id="btnReportes">Ver reportes</button>
+        <div id="avisoReportes"></div>
+        <div id="resumenReportes"></div>
+        <h3>Ganancia por producto</h3>
+        <table>
+          <thead>
+            <tr><th>Producto</th><th class="valor">Cant.</th><th class="valor">Ingresos</th><th class="valor">Ganancia</th></tr>
+          </thead>
+          <tbody id="tablaGanancia"></tbody>
+        </table>
+        <h3>Cartera pendiente</h3>
+        <table>
+          <thead>
+            <tr><th>Comprador</th><th class="valor">Saldo</th></tr>
+          </thead>
+          <tbody id="tablaCartera"></tbody>
+        </table>
+        <h3>Perdidas</h3>
+        <table>
+          <thead>
+            <tr><th>Fecha</th><th>Producto</th><th>Motivo</th><th class="valor">Valor</th></tr>
+          </thead>
+          <tbody id="tablaPerdidas"></tbody>
+        </table>
+      </div>
+
+      <div class="tarjeta">
         <h2>Ultimos movimientos</h2>
         <table>
           <thead>
-            <tr><th>Fecha</th><th>Quien</th><th>Producto</th><th class="valor">Valor</th><th></th></tr>
+            <tr><th>Fecha</th><th>Quien</th><th>Concepto</th><th class="valor">Valor</th><th></th></tr>
           </thead>
           <tbody id="movimientos"></tbody>
         </table>
@@ -118,15 +215,29 @@
         productosCache = productos;
         llenarSelectProductos(document.getElementById('productoAjuste'), productos);
         llenarSelectProductos(document.getElementById('productoAdmin'), productos);
+        llenarSelectProductos(document.getElementById('productoPerdida'), productos);
+      }
+
+      function pintarUsuarios(usuarios) {
+        ['usuarioDestino', 'usuarioPrestamo', 'participantesGasto', 'usuarioPago'].forEach(function (idSelect) {
+          var select = document.getElementById(idSelect);
+          select.innerHTML = '';
+          usuarios.forEach(function (usuario) {
+            var opcion = document.createElement('option');
+            opcion.value = usuario.id;
+            opcion.textContent = usuario.nombre;
+            select.appendChild(opcion);
+          });
+        });
       }
 
       function cargarMovimientos() {
         google.script.run.withSuccessHandler(function (respuesta) {
           var cuerpo = document.getElementById('movimientos');
           cuerpo.innerHTML = '';
-          respuesta.transacciones.forEach(function (movimiento) {
+          respuesta.movimientos.forEach(function (movimiento) {
             var fila = document.createElement('tr');
-            [fechaCorta(movimiento.fecha), movimiento.usuario, movimiento.concepto + ' x' + movimiento.cantidad, pesos(movimiento.valorTotal)]
+            [fechaCorta(movimiento.fecha), movimiento.quien, movimiento.concepto, pesos(movimiento.valor)]
               .forEach(function (texto, indice) {
                 var celda = document.createElement('td');
                 if (indice === 3) { celda.className = 'valor'; }
@@ -151,14 +262,14 @@
                 google.script.run.withSuccessHandler(function (resultado) {
                   mostrarAviso('avisoAnulacion', resultado.mensaje, !resultado.ok);
                   cargarTodo();
-                }).apiAnularTransaccion(token, movimiento.id, motivo);
+                }).apiAnularMovimiento(token, movimiento.tipo, movimiento.id, motivo);
               });
               celdaAccion.appendChild(boton);
             }
             fila.appendChild(celdaAccion);
             cuerpo.appendChild(fila);
           });
-        }).apiListarTransaccionesRecientes(token);
+        }).apiListarMovimientosRecientes(token);
       }
 
       function cargarTodo() {
@@ -172,14 +283,7 @@
           document.getElementById('quien').textContent = 'Conectado como ' + estado.nombre;
           pintarProductos(estado.productos);
           google.script.run.withSuccessHandler(function (respuesta) {
-            var select = document.getElementById('usuarioDestino');
-            select.innerHTML = '';
-            respuesta.usuarios.forEach(function (usuario) {
-              var opcion = document.createElement('option');
-              opcion.value = usuario.id;
-              opcion.textContent = usuario.nombre;
-              select.appendChild(opcion);
-            });
+            pintarUsuarios(respuesta.usuarios);
           }).apiListarUsuarios(token);
           cargarMovimientos();
         }).apiObtenerEstado(token);
@@ -209,6 +313,26 @@
         });
       });
 
+      document.getElementById('btnCrearComprador').addEventListener('click', function () {
+        var boton = this;
+        boton.disabled = true;
+        google.script.run.withSuccessHandler(function (respuesta) {
+          boton.disabled = false;
+          mostrarAviso('avisoComprador', respuesta.mensaje, !respuesta.ok);
+          if (respuesta.ok) {
+            pintarUsuarios(respuesta.usuarios);
+            ['nombreComprador', 'areaComprador', 'usuarioComprador', 'claveComprador'].forEach(function (id) {
+              document.getElementById(id).value = '';
+            });
+          }
+        }).apiCrearUsuarioComprador(token, {
+          nombre: document.getElementById('nombreComprador').value,
+          area: document.getElementById('areaComprador').value,
+          usuario: document.getElementById('usuarioComprador').value,
+          clave: document.getElementById('claveComprador').value
+        });
+      });
+
       document.getElementById('btnAjustarStock').addEventListener('click', function () {
         var boton = this;
         boton.disabled = true;
@@ -235,6 +359,125 @@
           document.getElementById('usuarioDestino').value,
           document.getElementById('productoAdmin').value,
           Number(document.getElementById('cantidadAdmin').value)
+        );
+      });
+
+      document.getElementById('btnPrestamo').addEventListener('click', function () {
+        var boton = this;
+        boton.disabled = true;
+        google.script.run.withSuccessHandler(function (respuesta) {
+          boton.disabled = false;
+          mostrarAviso('avisoPrestamo', respuesta.mensaje, !respuesta.ok);
+          if (respuesta.ok) { document.getElementById('valorPrestamo').value = ''; }
+        }).apiRegistrarPrestamo(
+          token,
+          document.getElementById('usuarioPrestamo').value,
+          Number(document.getElementById('valorPrestamo').value)
+        );
+      });
+
+      document.getElementById('btnPerdida').addEventListener('click', function () {
+        var boton = this;
+        boton.disabled = true;
+        google.script.run.withSuccessHandler(function (respuesta) {
+          boton.disabled = false;
+          mostrarAviso('avisoPerdida', respuesta.mensaje, !respuesta.ok);
+          if (respuesta.ok) {
+            pintarProductos(respuesta.productos);
+            document.getElementById('motivoPerdida').value = '';
+            document.getElementById('cantidadPerdida').value = '1';
+          }
+        }).apiRegistrarPerdida(
+          token,
+          document.getElementById('productoPerdida').value,
+          Number(document.getElementById('cantidadPerdida').value),
+          document.getElementById('motivoPerdida').value
+        );
+      });
+
+      document.getElementById('btnGasto').addEventListener('click', function () {
+        var boton = this;
+        var seleccionados = [];
+        var opciones = document.getElementById('participantesGasto').options;
+        for (var i = 0; i < opciones.length; i++) {
+          if (opciones[i].selected) { seleccionados.push(opciones[i].value); }
+        }
+        boton.disabled = true;
+        google.script.run.withSuccessHandler(function (respuesta) {
+          boton.disabled = false;
+          mostrarAviso('avisoGasto', respuesta.mensaje, !respuesta.ok);
+          if (respuesta.ok) {
+            document.getElementById('descripcionGasto').value = '';
+            document.getElementById('valorGasto').value = '';
+          }
+        }).apiRegistrarGastoCompartido(token, {
+          motivo: document.getElementById('motivoGasto').value,
+          descripcion: document.getElementById('descripcionGasto').value,
+          valorTotal: Number(document.getElementById('valorGasto').value),
+          participantes: seleccionados
+        });
+      });
+
+      document.getElementById('btnPago').addEventListener('click', function () {
+        var boton = this;
+        boton.disabled = true;
+        google.script.run.withSuccessHandler(function (respuesta) {
+          boton.disabled = false;
+          mostrarAviso('avisoPago', respuesta.mensaje, !respuesta.ok);
+          if (respuesta.ok) { document.getElementById('valorPago').value = ''; }
+        }).apiRegistrarPago(
+          token,
+          document.getElementById('usuarioPago').value,
+          Number(document.getElementById('valorPago').value)
+        );
+      });
+
+      function pintarFilas(idCuerpo, filas) {
+        var cuerpo = document.getElementById(idCuerpo);
+        cuerpo.innerHTML = '';
+        filas.forEach(function (celdas) {
+          var fila = document.createElement('tr');
+          celdas.forEach(function (texto, indice) {
+            var celda = document.createElement('td');
+            if (indice > 0) { celda.className = 'valor'; }
+            celda.textContent = texto;
+            fila.appendChild(celda);
+          });
+          cuerpo.appendChild(fila);
+        });
+      }
+
+      document.getElementById('btnReportes').addEventListener('click', function () {
+        var boton = this;
+        boton.disabled = true;
+        google.script.run.withSuccessHandler(function (respuesta) {
+          boton.disabled = false;
+          if (!respuesta.ok) {
+            mostrarAviso('avisoReportes', respuesta.mensaje, true);
+            return;
+          }
+          mostrarAviso('avisoReportes', '', false);
+          var resumen = 'Ganancia: ' + pesos(respuesta.ganancia.total) +
+            ' · Perdidas: ' + pesos(respuesta.perdidas.total) +
+            ' · Cartera: ' + pesos(respuesta.cartera.total);
+          if (respuesta.ganancia.estimado) {
+            resumen += ' (la ganancia incluye ventas sin costo historico, calculadas con el costo actual)';
+          }
+          document.getElementById('resumenReportes').textContent = resumen;
+
+          pintarFilas('tablaGanancia', respuesta.ganancia.porProducto.map(function (fila) {
+            return [fila.nombre, String(fila.cantidad), pesos(fila.ingresos), pesos(fila.ganancia)];
+          }));
+          pintarFilas('tablaCartera', respuesta.cartera.porUsuario.map(function (fila) {
+            return [fila.nombre, pesos(fila.saldo)];
+          }));
+          pintarFilas('tablaPerdidas', respuesta.perdidas.lineas.map(function (fila) {
+            return [fechaCorta(fila.fecha), fila.producto, fila.motivo, pesos(fila.valor)];
+          }));
+        }).apiReportes(
+          token,
+          document.getElementById('desdeReporte').value,
+          document.getElementById('hastaReporte').value
         );
       });
 
