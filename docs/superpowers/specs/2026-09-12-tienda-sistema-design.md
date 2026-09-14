@@ -39,8 +39,10 @@ Cada entidad vive en su propia hoja de Google Sheets.
 
 ### Usuario
 - `id`, `nombre`, `area`
+- `rol`: `admin` | `comprador` — solo `admin` habilita el panel de administración.
 - `tipo_login`: `google_corporativo` | `usuario_clave`
-- `email_corporativo` (si aplica) o `usuario` + `clave_hash` (si aplica)
+- `email_corporativo` (si aplica) o `usuario` + `salt` + `clave_hash` (si aplica).
+  La clave se guarda como `hash(salt + ":" + clave)`, nunca en texto plano.
 - `es_pseudo_usuario` (bool) — para casos especiales de agregación de reportes
   (ej. "Pérdidas"), que no inician sesión ni tienen saldo propio.
 - `activo` (bool)
@@ -60,6 +62,8 @@ Cada entidad vive en su propia hoja de Google Sheets.
 
 ### Transaccion (compra/fiado)
 - `id`, `usuario_id`, `producto_id`, `cantidad`, `valor_unitario`, `valor_total`
+- `producto_nombre` — copia del nombre del producto al momento de la venta, para
+  que el histórico no cambie si después se renombra el producto.
 - `fecha`
 - `origen`: `autoregistro` (el propio comprador la creó) | `admin` (la registró el
   administrador)

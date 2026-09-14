@@ -9,6 +9,22 @@ var ESQUEMA = {
   Transacciones: [
     'id', 'usuarioId', 'productoId', 'productoNombre', 'cantidad',
     'valorUnitario', 'valorTotal', 'fecha', 'origen', 'estado',
+    'anuladoPor', 'anuladoFecha', 'anuladoMotivo', 'costoUnitario'
+  ],
+  Prestamos: [
+    'id', 'usuarioId', 'valor', 'fecha', 'estado',
+    'anuladoPor', 'anuladoFecha', 'anuladoMotivo'
+  ],
+  Pagos: [
+    'id', 'usuarioId', 'valor', 'fecha', 'aplicadoA', 'estado',
+    'anuladoPor', 'anuladoFecha', 'anuladoMotivo'
+  ],
+  Perdidas: [
+    'id', 'productoId', 'productoNombre', 'cantidad', 'motivo', 'valor', 'fecha', 'estado',
+    'anuladoPor', 'anuladoFecha', 'anuladoMotivo'
+  ],
+  GastosCompartidos: [
+    'id', 'motivo', 'descripcion', 'valorTotal', 'participantes', 'fecha', 'estado',
     'anuladoPor', 'anuladoFecha', 'anuladoMotivo'
   ]
 };
