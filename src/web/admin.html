@@ -48,6 +48,21 @@
       </div>
 
       <div class="tarjeta">
+        <h2>Nuevo comprador</h2>
+        <p class="sub">Entregue el usuario y la clave a la persona para que entre a "Mi cuenta".</p>
+        <label for="nombreComprador">Nombre</label>
+        <input id="nombreComprador" type="text">
+        <label for="areaComprador">Area</label>
+        <input id="areaComprador" type="text">
+        <label for="usuarioComprador">Usuario</label>
+        <input id="usuarioComprador" type="text" autocomplete="off">
+        <label for="claveComprador">Clave</label>
+        <input id="claveComprador" type="text" autocomplete="off">
+        <button id="btnCrearComprador">Crear comprador</button>
+        <div id="avisoComprador"></div>
+      </div>
+
+      <div class="tarjeta">
         <h2>Registrar fiado a nombre de alguien</h2>
         <label for="usuarioDestino">Comprador</label>
         <select id="usuarioDestino"></select>
@@ -203,6 +218,19 @@
         llenarSelectProductos(document.getElementById('productoPerdida'), productos);
       }
 
+      function pintarUsuarios(usuarios) {
+        ['usuarioDestino', 'usuarioPrestamo', 'participantesGasto', 'usuarioPago'].forEach(function (idSelect) {
+          var select = document.getElementById(idSelect);
+          select.innerHTML = '';
+          usuarios.forEach(function (usuario) {
+            var opcion = document.createElement('option');
+            opcion.value = usuario.id;
+            opcion.textContent = usuario.nombre;
+            select.appendChild(opcion);
+          });
+        });
+      }
+
       function cargarMovimientos() {
         google.script.run.withSuccessHandler(function (respuesta) {
           var cuerpo = document.getElementById('movimientos');
@@ -255,16 +283,7 @@
           document.getElementById('quien').textContent = 'Conectado como ' + estado.nombre;
           pintarProductos(estado.productos);
           google.script.run.withSuccessHandler(function (respuesta) {
-            ['usuarioDestino', 'usuarioPrestamo', 'participantesGasto', 'usuarioPago'].forEach(function (idSelect) {
-              var select = document.getElementById(idSelect);
-              select.innerHTML = '';
-              respuesta.usuarios.forEach(function (usuario) {
-                var opcion = document.createElement('option');
-                opcion.value = usuario.id;
-                opcion.textContent = usuario.nombre;
-                select.appendChild(opcion);
-              });
-            });
+            pintarUsuarios(respuesta.usuarios);
           }).apiListarUsuarios(token);
           cargarMovimientos();
         }).apiObtenerEstado(token);
@@ -291,6 +310,26 @@
           porcentajeAumento: Number(document.getElementById('porcentajeAumento').value),
           precioVenta: Number(document.getElementById('precioVenta').value),
           stockActual: Number(document.getElementById('stockInicial').value)
+        });
+      });
+
+      document.getElementById('btnCrearComprador').addEventListener('click', function () {
+        var boton = this;
+        boton.disabled = true;
+        google.script.run.withSuccessHandler(function (respuesta) {
+          boton.disabled = false;
+          mostrarAviso('avisoComprador', respuesta.mensaje, !respuesta.ok);
+          if (respuesta.ok) {
+            pintarUsuarios(respuesta.usuarios);
+            ['nombreComprador', 'areaComprador', 'usuarioComprador', 'claveComprador'].forEach(function (id) {
+              document.getElementById(id).value = '';
+            });
+          }
+        }).apiCrearUsuarioComprador(token, {
+          nombre: document.getElementById('nombreComprador').value,
+          area: document.getElementById('areaComprador').value,
+          usuario: document.getElementById('usuarioComprador').value,
+          clave: document.getElementById('claveComprador').value
         });
       });
 

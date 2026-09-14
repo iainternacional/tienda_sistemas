@@ -212,15 +212,44 @@ function apiActualizarProducto(token, productoId, cambios) {
   }
 }
 
+function usuariosVisibles() {
+  return leerTodo(obtenerLibro(), 'Usuarios')
+    .filter(function (usuario) { return usuario.activo === true; })
+    .map(function (usuario) {
+      return { id: usuario.id, nombre: usuario.nombre, esPseudoUsuario: usuario.esPseudoUsuario === true };
+    });
+}
+
 function apiListarUsuarios(token) {
   try {
     exigirAdmin(token);
-    const usuarios = leerTodo(obtenerLibro(), 'Usuarios')
-      .filter(function (usuario) { return usuario.activo === true; })
-      .map(function (usuario) {
-        return { id: usuario.id, nombre: usuario.nombre, esPseudoUsuario: usuario.esPseudoUsuario === true };
-      });
-    return { ok: true, mensaje: '', usuarios: usuarios };
+    return { ok: true, mensaje: '', usuarios: usuariosVisibles() };
+  } catch (error) {
+    return { ok: false, mensaje: error.message, usuarios: [] };
+  }
+}
+
+function apiCrearUsuarioComprador(token, datos) {
+  try {
+    exigirAdmin(token);
+    const libro = obtenerLibro();
+    if (buscarUsuarioPorNombreDeUsuario(leerTodo(libro, 'Usuarios'), datos.usuario)) {
+      return { ok: false, mensaje: 'Ya existe un usuario con ese login', usuarios: [] };
+    }
+    const nuevo = crearUsuarioComprador({
+      id: nuevoId(),
+      nombre: datos.nombre,
+      area: datos.area,
+      usuario: datos.usuario,
+      clave: datos.clave,
+      salt: Utilities.getUuid()
+    }, hashConUtilities);
+    agregarFila(libro, 'Usuarios', nuevo);
+    return {
+      ok: true,
+      mensaje: 'Comprador creado. Entrega estos datos a ' + nuevo.nombre + ': usuario ' + nuevo.usuario,
+      usuarios: usuariosVisibles()
+    };
   } catch (error) {
     return { ok: false, mensaje: error.message, usuarios: [] };
   }
