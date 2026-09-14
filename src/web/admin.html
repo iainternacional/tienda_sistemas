@@ -70,6 +70,18 @@
       </div>
 
       <div class="tarjeta">
+        <h2>Registrar perdida</h2>
+        <label for="productoPerdida">Producto</label>
+        <select id="productoPerdida"></select>
+        <label for="cantidadPerdida">Cantidad</label>
+        <input id="cantidadPerdida" type="number" min="1" step="1" value="1">
+        <label for="motivoPerdida">Motivo</label>
+        <input id="motivoPerdida" type="text">
+        <button id="btnPerdida">Registrar perdida</button>
+        <div id="avisoPerdida"></div>
+      </div>
+
+      <div class="tarjeta">
         <h2>Ultimos movimientos</h2>
         <table>
           <thead>
@@ -128,6 +140,7 @@
         productosCache = productos;
         llenarSelectProductos(document.getElementById('productoAjuste'), productos);
         llenarSelectProductos(document.getElementById('productoAdmin'), productos);
+        llenarSelectProductos(document.getElementById('productoPerdida'), productos);
       }
 
       function cargarMovimientos() {
@@ -261,6 +274,25 @@
           token,
           document.getElementById('usuarioPrestamo').value,
           Number(document.getElementById('valorPrestamo').value)
+        );
+      });
+
+      document.getElementById('btnPerdida').addEventListener('click', function () {
+        var boton = this;
+        boton.disabled = true;
+        google.script.run.withSuccessHandler(function (respuesta) {
+          boton.disabled = false;
+          mostrarAviso('avisoPerdida', respuesta.mensaje, !respuesta.ok);
+          if (respuesta.ok) {
+            pintarProductos(respuesta.productos);
+            document.getElementById('motivoPerdida').value = '';
+            document.getElementById('cantidadPerdida').value = '1';
+          }
+        }).apiRegistrarPerdida(
+          token,
+          document.getElementById('productoPerdida').value,
+          Number(document.getElementById('cantidadPerdida').value),
+          document.getElementById('motivoPerdida').value
         );
       });
 

@@ -298,6 +298,86 @@ function apiAnularPrestamo(token, prestamoId, motivo) {
   }
 }
 
+function apiRegistrarPerdida(token, productoId, cantidad, motivo) {
+  const bloqueo = LockService.getScriptLock();
+  bloqueo.waitLock(30000);
+  try {
+    exigirAdmin(token);
+    const libro = obtenerLibro();
+    const productos = leerTodo(libro, 'Productos');
+    let producto = null;
+    for (let i = 0; i < productos.length; i++) {
+      if (productos[i].id === productoId) {
+        producto = productos[i];
+        break;
+      }
+    }
+    if (!producto || producto.activo !== true) {
+      return { ok: false, mensaje: 'El producto no existe o esta inactivo', productos: [] };
+    }
+    const perdida = crearPerdida({
+      id: nuevoId(),
+      producto: producto,
+      cantidad: Number(cantidad),
+      motivo: motivo,
+      fecha: ahoraIso()
+    });
+    const actualizado = descontarStock(producto, Number(cantidad));
+    agregarFila(libro, 'Perdidas', perdida);
+    actualizarPorId(libro, 'Productos', producto.id, { stockActual: actualizado.stockActual });
+    return { ok: true, mensaje: 'Perdida registrada: ' + perdida.cantidad + ' x ' + perdida.productoNombre, productos: productosVisibles() };
+  } catch (error) {
+    return { ok: false, mensaje: error.message, productos: [] };
+  } finally {
+    bloqueo.releaseLock();
+  }
+}
+
+function apiAnularPerdida(token, perdidaId, motivo) {
+  const bloqueo = LockService.getScriptLock();
+  bloqueo.waitLock(30000);
+  try {
+    const admin = exigirAdmin(token);
+    const libro = obtenerLibro();
+    const perdidas = leerTodo(libro, 'Perdidas');
+    let original = null;
+    for (let i = 0; i < perdidas.length; i++) {
+      if (perdidas[i].id === perdidaId) {
+        original = perdidas[i];
+        break;
+      }
+    }
+    if (!original) {
+      return { ok: false, mensaje: 'No se encontro la perdida', productos: [] };
+    }
+    const anulado = anularRegistro(original, {
+      anuladoPor: admin.nombre,
+      anuladoFecha: ahoraIso(),
+      anuladoMotivo: motivo
+    });
+    actualizarPorId(libro, 'Perdidas', perdidaId, {
+      estado: anulado.estado,
+      anuladoPor: anulado.anuladoPor,
+      anuladoFecha: anulado.anuladoFecha,
+      anuladoMotivo: anulado.anuladoMotivo
+    });
+    const productos = leerTodo(libro, 'Productos');
+    for (let j = 0; j < productos.length; j++) {
+      if (productos[j].id === original.productoId) {
+        actualizarPorId(libro, 'Productos', original.productoId, {
+          stockActual: productos[j].stockActual + original.cantidad
+        });
+        break;
+      }
+    }
+    return { ok: true, mensaje: 'Perdida anulada y stock devuelto', productos: productosVisibles() };
+  } catch (error) {
+    return { ok: false, mensaje: error.message, productos: [] };
+  } finally {
+    bloqueo.releaseLock();
+  }
+}
+
 function apiListarTransaccionesRecientes(token) {
   try {
     exigirAdmin(token);
