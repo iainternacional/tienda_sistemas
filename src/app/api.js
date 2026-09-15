@@ -255,6 +255,30 @@ function apiCrearUsuarioComprador(token, datos) {
   }
 }
 
+function apiCrearUsuarioCorporativo(token, datos) {
+  try {
+    exigirAdmin(token);
+    const libro = obtenerLibro();
+    if (buscarUsuarioPorEmailCorporativo(leerTodo(libro, 'Usuarios'), datos.email)) {
+      return { ok: false, mensaje: 'Ya existe un usuario con ese correo', usuarios: [] };
+    }
+    const nuevo = crearUsuarioCorporativo({
+      id: nuevoId(),
+      nombre: datos.nombre,
+      area: datos.area,
+      email: datos.email
+    });
+    agregarFila(libro, 'Usuarios', nuevo);
+    return {
+      ok: true,
+      mensaje: nuevo.nombre + ' ya puede entrar a "Mi cuenta" con su correo ' + nuevo.emailCorporativo,
+      usuarios: usuariosVisibles()
+    };
+  } catch (error) {
+    return { ok: false, mensaje: error.message, usuarios: [] };
+  }
+}
+
 function apiRegistrarFiadoComoAdmin(token, usuarioId, productoId, cantidad) {
   try {
     exigirAdmin(token);

@@ -49,15 +49,13 @@
 
       <div class="tarjeta">
         <h2>Nuevo comprador</h2>
-        <p class="sub">Entregue el usuario y la clave a la persona para que entre a "Mi cuenta".</p>
+        <p class="sub">Debe ser un correo corporativo. La persona entra a "Mi cuenta" con esa cuenta de Google, sin usuario ni clave.</p>
         <label for="nombreComprador">Nombre</label>
         <input id="nombreComprador" type="text">
         <label for="areaComprador">Area</label>
         <input id="areaComprador" type="text">
-        <label for="usuarioComprador">Usuario</label>
-        <input id="usuarioComprador" type="text" autocomplete="off">
-        <label for="claveComprador">Clave</label>
-        <input id="claveComprador" type="text" autocomplete="off">
+        <label for="emailComprador">Correo corporativo</label>
+        <input id="emailComprador" type="email" autocomplete="off">
         <button id="btnCrearComprador">Crear comprador</button>
         <div id="avisoComprador"></div>
       </div>
@@ -321,15 +319,14 @@
           mostrarAviso('avisoComprador', respuesta.mensaje, !respuesta.ok);
           if (respuesta.ok) {
             pintarUsuarios(respuesta.usuarios);
-            ['nombreComprador', 'areaComprador', 'usuarioComprador', 'claveComprador'].forEach(function (id) {
+            ['nombreComprador', 'areaComprador', 'emailComprador'].forEach(function (id) {
               document.getElementById(id).value = '';
             });
           }
-        }).apiCrearUsuarioComprador(token, {
+        }).apiCrearUsuarioCorporativo(token, {
           nombre: document.getElementById('nombreComprador').value,
           area: document.getElementById('areaComprador').value,
-          usuario: document.getElementById('usuarioComprador').value,
-          clave: document.getElementById('claveComprador').value
+          email: document.getElementById('emailComprador').value
         });
       });
 
