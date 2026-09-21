@@ -26,6 +26,10 @@ var ESQUEMA = {
   GastosCompartidos: [
     'id', 'motivo', 'descripcion', 'valorTotal', 'participantes', 'fecha', 'estado',
     'anuladoPor', 'anuladoFecha', 'anuladoMotivo'
+  ],
+  IngresosInventario: [
+    'id', 'fecha', 'admin', 'lineas', 'estado',
+    'anuladoPor', 'anuladoFecha', 'anuladoMotivo'
   ]
 };
 
