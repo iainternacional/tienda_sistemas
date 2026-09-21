@@ -17,153 +17,247 @@
         <p class="sub" id="quien"></p>
       </div>
 
-      <div class="tarjeta">
-        <h2>Nuevo producto</h2>
-        <label for="nombre">Nombre</label>
-        <input id="nombre" type="text">
-        <label for="alias">Alias (opcional)</label>
-        <input id="alias" type="text">
-        <label for="categoria">Categoria</label>
-        <input id="categoria" type="text">
-        <label for="costo">Costo (lo que me costo)</label>
-        <input id="costo" type="number" min="1" step="1">
-        <label for="porcentajeAumento">Porcentaje de aumento (%)</label>
-        <input id="porcentajeAumento" type="number" min="0" step="0.01">
-        <label for="precioVenta">Precio de venta</label>
-        <input id="precioVenta" type="number" min="1" step="1">
-        <label for="stockInicial">Stock inicial</label>
-        <input id="stockInicial" type="number" min="0" step="1" value="0">
-        <button id="btnCrearProducto">Crear producto</button>
-        <div id="avisoProducto"></div>
-      </div>
+      <details class="seccion" name="seccionAdmin" open>
+        <summary>Inventario</summary>
+        <div class="cuerpo">
+          <div class="bloque">
+            <h3>Nuevo producto</h3>
+            <div class="rejilla">
+              <div class="campo">
+                <label for="nombre">Nombre</label>
+                <input id="nombre" type="text">
+              </div>
+              <div class="campo">
+                <label for="alias">Alias (opcional)</label>
+                <input id="alias" type="text">
+              </div>
+              <div class="campo">
+                <label for="categoria">Categoria</label>
+                <input id="categoria" type="text">
+              </div>
+              <div class="campo">
+                <label for="stockInicial">Stock inicial</label>
+                <input id="stockInicial" type="number" min="0" step="1" value="0">
+              </div>
+              <div class="campo">
+                <label for="costo">Costo (lo que me costo)</label>
+                <input id="costo" type="number" min="1" step="1">
+              </div>
+              <div class="campo">
+                <label for="porcentajeAumento">Porcentaje de aumento (%)</label>
+                <input id="porcentajeAumento" type="number" min="0" step="0.01">
+              </div>
+              <div class="campo">
+                <label for="precioVenta">Precio de venta</label>
+                <input id="precioVenta" type="number" min="1" step="1">
+              </div>
+              <button id="btnCrearProducto" class="campo-ancho">Crear producto</button>
+              <div id="avisoProducto" class="campo-ancho"></div>
+            </div>
+          </div>
 
-      <div class="tarjeta">
-        <h2>Ajustar stock</h2>
-        <label for="productoAjuste">Producto</label>
-        <select id="productoAjuste"></select>
-        <label for="stockNuevo">Nuevo stock</label>
-        <input id="stockNuevo" type="number" min="0" step="1">
-        <button id="btnAjustarStock">Guardar stock</button>
-        <div id="avisoStock"></div>
-      </div>
+          <div class="bloque">
+            <h3>Ajustar stock</h3>
+            <div class="rejilla">
+              <div class="campo">
+                <label for="productoAjuste">Producto</label>
+                <select id="productoAjuste"></select>
+              </div>
+              <div class="campo">
+                <label for="stockNuevo">Nuevo stock</label>
+                <input id="stockNuevo" type="number" min="0" step="1">
+              </div>
+              <button id="btnAjustarStock" class="campo-ancho">Guardar stock</button>
+              <div id="avisoStock" class="campo-ancho"></div>
+            </div>
+          </div>
+        </div>
+      </details>
 
-      <div class="tarjeta">
-        <h2>Nuevo comprador</h2>
-        <p class="sub">Debe ser un correo corporativo. La persona entra a "Mi cuenta" con esa cuenta de Google, sin usuario ni clave.</p>
-        <label for="nombreComprador">Nombre</label>
-        <input id="nombreComprador" type="text">
-        <label for="areaComprador">Area</label>
-        <input id="areaComprador" type="text">
-        <label for="emailComprador">Correo corporativo</label>
-        <input id="emailComprador" type="email" autocomplete="off">
-        <button id="btnCrearComprador">Crear comprador</button>
-        <div id="avisoComprador"></div>
-      </div>
+      <details class="seccion" name="seccionAdmin">
+        <summary>Compradores y movimientos</summary>
+        <div class="cuerpo">
+          <div class="bloque">
+            <h3>Nuevo comprador</h3>
+            <p class="sub">Debe ser un correo corporativo. La persona entra a "Mi cuenta" con esa cuenta de Google, sin usuario ni clave.</p>
+            <div class="rejilla">
+              <div class="campo">
+                <label for="nombreComprador">Nombre</label>
+                <input id="nombreComprador" type="text">
+              </div>
+              <div class="campo">
+                <label for="areaComprador">Area</label>
+                <input id="areaComprador" type="text">
+              </div>
+              <div class="campo campo-ancho">
+                <label for="emailComprador">Correo corporativo</label>
+                <input id="emailComprador" type="email" autocomplete="off">
+              </div>
+              <button id="btnCrearComprador" class="campo-ancho">Crear comprador</button>
+              <div id="avisoComprador" class="campo-ancho"></div>
+            </div>
+          </div>
 
-      <div class="tarjeta">
-        <h2>Registrar fiado a nombre de alguien</h2>
-        <label for="usuarioDestino">Comprador</label>
-        <select id="usuarioDestino"></select>
-        <label for="productoAdmin">Producto</label>
-        <select id="productoAdmin"></select>
-        <label for="cantidadAdmin">Cantidad</label>
-        <input id="cantidadAdmin" type="number" min="1" step="1" value="1">
-        <button id="btnFiadoAdmin">Registrar</button>
-        <div id="avisoFiadoAdmin"></div>
-      </div>
+          <div class="bloque">
+            <h3>Registrar fiado a nombre de alguien</h3>
+            <div class="rejilla">
+              <div class="campo">
+                <label for="usuarioDestino">Comprador</label>
+                <select id="usuarioDestino"></select>
+              </div>
+              <div class="campo">
+                <label for="productoAdmin">Producto</label>
+                <select id="productoAdmin"></select>
+              </div>
+              <div class="campo">
+                <label for="cantidadAdmin">Cantidad</label>
+                <input id="cantidadAdmin" type="number" min="1" step="1" value="1">
+              </div>
+              <button id="btnFiadoAdmin" class="campo-ancho">Registrar</button>
+              <div id="avisoFiadoAdmin" class="campo-ancho"></div>
+            </div>
+          </div>
 
-      <div class="tarjeta">
-        <h2>Prestar efectivo</h2>
-        <label for="usuarioPrestamo">Comprador</label>
-        <select id="usuarioPrestamo"></select>
-        <label for="valorPrestamo">Valor prestado</label>
-        <input id="valorPrestamo" type="number" min="1" step="1">
-        <button id="btnPrestamo">Registrar prestamo</button>
-        <div id="avisoPrestamo"></div>
-      </div>
+          <div class="bloque">
+            <h3>Prestar efectivo</h3>
+            <div class="rejilla">
+              <div class="campo">
+                <label for="usuarioPrestamo">Comprador</label>
+                <select id="usuarioPrestamo"></select>
+              </div>
+              <div class="campo">
+                <label for="valorPrestamo">Valor prestado</label>
+                <input id="valorPrestamo" type="number" min="1" step="1">
+              </div>
+              <button id="btnPrestamo" class="campo-ancho">Registrar prestamo</button>
+              <div id="avisoPrestamo" class="campo-ancho"></div>
+            </div>
+          </div>
 
-      <div class="tarjeta">
-        <h2>Registrar perdida</h2>
-        <label for="productoPerdida">Producto</label>
-        <select id="productoPerdida"></select>
-        <label for="cantidadPerdida">Cantidad</label>
-        <input id="cantidadPerdida" type="number" min="1" step="1" value="1">
-        <label for="motivoPerdida">Motivo</label>
-        <input id="motivoPerdida" type="text">
-        <button id="btnPerdida">Registrar perdida</button>
-        <div id="avisoPerdida"></div>
-      </div>
+          <div class="bloque">
+            <h3>Registrar abono</h3>
+            <div class="rejilla">
+              <div class="campo">
+                <label for="usuarioPago">Comprador</label>
+                <select id="usuarioPago"></select>
+              </div>
+              <div class="campo">
+                <label for="valorPago">Valor abonado</label>
+                <input id="valorPago" type="number" min="1" step="1">
+              </div>
+              <button id="btnPago" class="campo-ancho">Registrar abono</button>
+              <div id="avisoPago" class="campo-ancho"></div>
+            </div>
+          </div>
+        </div>
+      </details>
 
-      <div class="tarjeta">
-        <h2>Gasto compartido</h2>
-        <label for="motivoGasto">Motivo</label>
-        <select id="motivoGasto">
-          <option value="bienvenida">Bienvenida</option>
-          <option value="cumpleanos">Cumpleanos</option>
-          <option value="otro">Otro</option>
-        </select>
-        <label for="descripcionGasto">Descripcion</label>
-        <input id="descripcionGasto" type="text">
-        <label for="valorGasto">Valor total</label>
-        <input id="valorGasto" type="number" min="1" step="1">
-        <label for="participantesGasto">Participantes (mantenga Ctrl para elegir varios)</label>
-        <select id="participantesGasto" multiple size="8"></select>
-        <button id="btnGasto">Repartir gasto</button>
-        <div id="avisoGasto"></div>
-      </div>
+      <details class="seccion" name="seccionAdmin">
+        <summary>Perdidas y gastos compartidos</summary>
+        <div class="cuerpo">
+          <div class="bloque">
+            <h3>Registrar perdida</h3>
+            <div class="rejilla">
+              <div class="campo">
+                <label for="productoPerdida">Producto</label>
+                <select id="productoPerdida"></select>
+              </div>
+              <div class="campo">
+                <label for="cantidadPerdida">Cantidad</label>
+                <input id="cantidadPerdida" type="number" min="1" step="1" value="1">
+              </div>
+              <div class="campo campo-ancho">
+                <label for="motivoPerdida">Motivo</label>
+                <input id="motivoPerdida" type="text">
+              </div>
+              <button id="btnPerdida" class="campo-ancho">Registrar perdida</button>
+              <div id="avisoPerdida" class="campo-ancho"></div>
+            </div>
+          </div>
 
-      <div class="tarjeta">
-        <h2>Registrar abono</h2>
-        <label for="usuarioPago">Comprador</label>
-        <select id="usuarioPago"></select>
-        <label for="valorPago">Valor abonado</label>
-        <input id="valorPago" type="number" min="1" step="1">
-        <button id="btnPago">Registrar abono</button>
-        <div id="avisoPago"></div>
-      </div>
+          <div class="bloque">
+            <h3>Gasto compartido</h3>
+            <div class="rejilla">
+              <div class="campo">
+                <label for="motivoGasto">Motivo</label>
+                <select id="motivoGasto">
+                  <option value="bienvenida">Bienvenida</option>
+                  <option value="cumpleanos">Cumpleanos</option>
+                  <option value="otro">Otro</option>
+                </select>
+              </div>
+              <div class="campo">
+                <label for="valorGasto">Valor total</label>
+                <input id="valorGasto" type="number" min="1" step="1">
+              </div>
+              <div class="campo campo-ancho">
+                <label for="descripcionGasto">Descripcion</label>
+                <input id="descripcionGasto" type="text">
+              </div>
+              <div class="campo campo-ancho">
+                <label for="participantesGasto">Participantes (mantenga Ctrl para elegir varios)</label>
+                <select id="participantesGasto" multiple size="8"></select>
+              </div>
+              <button id="btnGasto" class="campo-ancho">Repartir gasto</button>
+              <div id="avisoGasto" class="campo-ancho"></div>
+            </div>
+          </div>
+        </div>
+      </details>
 
-      <div class="tarjeta">
-        <h2>Reportes</h2>
-        <label for="desdeReporte">Desde</label>
-        <input id="desdeReporte" type="date">
-        <label for="hastaReporte">Hasta</label>
-        <input id="hastaReporte" type="date">
-        <button id="btnReportes">Ver reportes</button>
-        <div id="avisoReportes"></div>
-        <div id="resumenReportes"></div>
-        <h3>Ganancia por producto</h3>
-        <table>
-          <thead>
-            <tr><th>Producto</th><th class="valor">Cant.</th><th class="valor">Ingresos</th><th class="valor">Ganancia</th></tr>
-          </thead>
-          <tbody id="tablaGanancia"></tbody>
-        </table>
-        <h3>Cartera pendiente</h3>
-        <table>
-          <thead>
-            <tr><th>Comprador</th><th class="valor">Saldo</th></tr>
-          </thead>
-          <tbody id="tablaCartera"></tbody>
-        </table>
-        <h3>Perdidas</h3>
-        <table>
-          <thead>
-            <tr><th>Fecha</th><th>Producto</th><th>Motivo</th><th class="valor">Valor</th></tr>
-          </thead>
-          <tbody id="tablaPerdidas"></tbody>
-        </table>
-      </div>
+      <details class="seccion" name="seccionAdmin">
+        <summary>Reportes y movimientos</summary>
+        <div class="cuerpo">
+          <div class="bloque">
+            <h3>Reportes</h3>
+            <div class="rejilla">
+              <div class="campo">
+                <label for="desdeReporte">Desde</label>
+                <input id="desdeReporte" type="date">
+              </div>
+              <div class="campo">
+                <label for="hastaReporte">Hasta</label>
+                <input id="hastaReporte" type="date">
+              </div>
+              <button id="btnReportes" class="campo-ancho">Ver reportes</button>
+              <div id="avisoReportes" class="campo-ancho"></div>
+              <div id="resumenReportes" class="campo-ancho"></div>
+            </div>
+            <h4>Ganancia por producto</h4>
+            <table>
+              <thead>
+                <tr><th>Producto</th><th class="valor">Cant.</th><th class="valor">Ingresos</th><th class="valor">Ganancia</th></tr>
+              </thead>
+              <tbody id="tablaGanancia"></tbody>
+            </table>
+            <h4>Cartera pendiente</h4>
+            <table>
+              <thead>
+                <tr><th>Comprador</th><th class="valor">Saldo</th></tr>
+              </thead>
+              <tbody id="tablaCartera"></tbody>
+            </table>
+            <h4>Perdidas</h4>
+            <table>
+              <thead>
+                <tr><th>Fecha</th><th>Producto</th><th>Motivo</th><th class="valor">Valor</th></tr>
+              </thead>
+              <tbody id="tablaPerdidas"></tbody>
+            </table>
+          </div>
 
-      <div class="tarjeta">
-        <h2>Ultimos movimientos</h2>
-        <table>
-          <thead>
-            <tr><th>Fecha</th><th>Quien</th><th>Concepto</th><th class="valor">Valor</th><th></th></tr>
-          </thead>
-          <tbody id="movimientos"></tbody>
-        </table>
-        <div id="avisoAnulacion"></div>
-      </div>
+          <div class="bloque">
+            <h3>Ultimos movimientos</h3>
+            <table>
+              <thead>
+                <tr><th>Fecha</th><th>Quien</th><th>Concepto</th><th class="valor">Valor</th><th></th></tr>
+              </thead>
+              <tbody id="movimientos"></tbody>
+            </table>
+            <div id="avisoAnulacion"></div>
+          </div>
+        </div>
+      </details>
     </div>
 
     <script>
