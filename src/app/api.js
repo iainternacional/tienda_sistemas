@@ -440,6 +440,131 @@ function apiAnularPerdida(token, perdidaId, motivo) {
   }
 }
 
+function apiLeerFactura(token, imagenBase64) {
+  try {
+    exigirAdmin(token);
+    if (!imagenBase64) {
+      return { ok: false, mensaje: 'Falta la imagen de la factura', lineas: [] };
+    }
+    const apiKey = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');
+    if (!apiKey) {
+      return { ok: false, mensaje: 'Falta configurar GEMINI_API_KEY en el proyecto', lineas: [] };
+    }
+    const prompt = 'Lee esta factura de proveedor y devuelve SOLO un JSON, sin texto ' +
+      'alrededor, con esta forma exacta: {"lineas": [{"nombre": "...", "cantidad": 0, ' +
+      '"costoUnitario": 0}]}. cantidad y costoUnitario son numeros enteros. Si un dato ' +
+      'no es legible, omite esa linea por completo.';
+    const respuesta = UrlFetchApp.fetch(
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + apiKey,
+      {
+        method: 'post',
+        contentType: 'application/json',
+        muteHttpExceptions: true,
+        payload: JSON.stringify({
+          contents: [{
+            parts: [
+              { text: prompt },
+              { inline_data: { mime_type: 'image/jpeg', data: imagenBase64 } }
+            ]
+          }]
+        })
+      }
+    );
+    if (respuesta.getResponseCode() !== 200) {
+      return { ok: false, mensaje: 'Gemini no pudo procesar la factura (HTTP ' + respuesta.getResponseCode() + ')', lineas: [] };
+    }
+    const texto = JSON.parse(respuesta.getContentText()).candidates[0].content.parts[0].text;
+    const saneadas = sanearLineas(parsearRespuestaGemini(texto));
+    if (saneadas.length === 0) {
+      return { ok: false, mensaje: 'No se pudo leer ninguna linea de la factura', lineas: [] };
+    }
+    const productosActivos = leerTodo(obtenerLibro(), 'Productos').filter(function (p) { return p.activo === true; });
+    return { ok: true, mensaje: '', lineas: emparejarLineas(saneadas, productosActivos) };
+  } catch (error) {
+    return { ok: false, mensaje: 'No se pudo leer la factura: ' + error.message, lineas: [] };
+  }
+}
+
+function apiConfirmarIngresoInventario(token, lineas) {
+  const bloqueo = LockService.getScriptLock();
+  bloqueo.waitLock(30000);
+  try {
+    const admin = exigirAdmin(token);
+    validarLineasParaConfirmar(lineas);
+    const libro = obtenerLibro();
+    const productos = leerTodo(libro, 'Productos');
+    lineas.forEach(function (linea) {
+      if (linea.esNuevo && buscarProductoPorNombre(productos, linea.nombre)) {
+        throw new Error('Ya existe un producto llamado "' + linea.nombre + '"');
+      }
+      if (!linea.esNuevo && !productos.some(function (p) { return p.id === linea.productoId && p.activo === true; })) {
+        throw new Error('El producto de la linea "' + linea.nombre + '" ya no existe o esta inactivo');
+      }
+    });
+    lineas.forEach(function (linea) {
+      if (linea.esNuevo) {
+        const id = nuevoId();
+        agregarFila(libro, 'Productos', {
+          id: id, nombre: linea.nombre, alias: '', categoria: String(linea.categoria).trim(),
+          costo: Number(linea.costoUnitario), precioVenta: Number(linea.precioVenta),
+          stockActual: Number(linea.cantidad), activo: true, porcentajeAumento: 0
+        });
+        linea.productoId = id;
+      } else {
+        const producto = productos.filter(function (p) { return p.id === linea.productoId; })[0];
+        actualizarPorId(libro, 'Productos', producto.id, {
+          stockActual: producto.stockActual + Number(linea.cantidad),
+          costo: Number(linea.costoUnitario)
+        });
+      }
+    });
+    const ingreso = crearIngresoInventario({ id: nuevoId(), admin: admin.nombre, lineas: lineas, fecha: ahoraIso() });
+    agregarFila(libro, 'IngresosInventario', ingreso);
+    return { ok: true, mensaje: 'Factura ingresada al inventario', productos: productosVisibles() };
+  } catch (error) {
+    return { ok: false, mensaje: error.message, productos: [] };
+  } finally {
+    bloqueo.releaseLock();
+  }
+}
+
+function apiAnularIngresoInventario(token, ingresoId, motivo) {
+  const bloqueo = LockService.getScriptLock();
+  bloqueo.waitLock(30000);
+  try {
+    const admin = exigirAdmin(token);
+    const libro = obtenerLibro();
+    const ingresos = leerTodo(libro, 'IngresosInventario');
+    let original = null;
+    for (let i = 0; i < ingresos.length; i++) {
+      if (ingresos[i].id === ingresoId) { original = ingresos[i]; break; }
+    }
+    if (!original) {
+      return { ok: false, mensaje: 'No se encontro el ingreso', productos: [] };
+    }
+    const anulado = anularRegistro(original, {
+      anuladoPor: admin.nombre, anuladoFecha: ahoraIso(), anuladoMotivo: motivo
+    });
+    actualizarPorId(libro, 'IngresosInventario', ingresoId, {
+      estado: anulado.estado, anuladoPor: anulado.anuladoPor,
+      anuladoFecha: anulado.anuladoFecha, anuladoMotivo: anulado.anuladoMotivo
+    });
+    const lineas = JSON.parse(original.lineas);
+    const productos = leerTodo(libro, 'Productos');
+    lineas.forEach(function (linea) {
+      const producto = productos.filter(function (p) { return p.id === linea.productoId; })[0];
+      if (producto) {
+        actualizarPorId(libro, 'Productos', producto.id, { stockActual: producto.stockActual - Number(linea.cantidad) });
+      }
+    });
+    return { ok: true, mensaje: 'Ingreso anulado', productos: productosVisibles() };
+  } catch (error) {
+    return { ok: false, mensaje: error.message, productos: [] };
+  } finally {
+    bloqueo.releaseLock();
+  }
+}
+
 function apiRegistrarGastoCompartido(token, datos) {
   try {
     exigirAdmin(token);
@@ -639,6 +764,17 @@ function apiListarMovimientosRecientes(token) {
       });
     });
 
+    leerTodo(libro, 'IngresosInventario').forEach(function (registro) {
+      const lineas = JSON.parse(registro.lineas || '[]');
+      movimientos.push({
+        id: registro.id, tipo: 'ingreso', fecha: registro.fecha,
+        quien: registro.admin || '-',
+        concepto: 'Ingreso de factura: ' + lineas.length + ' producto(s)',
+        valor: lineas.reduce(function (suma, l) { return suma + l.cantidad * l.costoUnitario; }, 0),
+        estado: registro.estado
+      });
+    });
+
     movimientos.sort(function (a, b) { return String(b.fecha).localeCompare(String(a.fecha)); });
     return { ok: true, mensaje: '', movimientos: movimientos.slice(0, 50) };
   } catch (error) {
@@ -652,6 +788,7 @@ function apiAnularMovimiento(token, tipo, movimientoId, motivo) {
   if (tipo === 'pago') { return apiAnularPago(token, movimientoId, motivo); }
   if (tipo === 'perdida') { return apiAnularPerdida(token, movimientoId, motivo); }
   if (tipo === 'gasto') { return apiAnularGastoCompartido(token, movimientoId, motivo); }
+  if (tipo === 'ingreso') { return apiAnularIngresoInventario(token, movimientoId, motivo); }
   return { ok: false, mensaje: 'Tipo de movimiento desconocido: ' + tipo };
 }
 

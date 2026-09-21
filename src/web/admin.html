@@ -486,6 +486,78 @@
         );
       });
 
+      var lineasFactura = [];
+
+      function pintarTablaFactura() {
+        var cuerpo = document.getElementById('cuerpoTablaFactura');
+        cuerpo.innerHTML = '';
+        lineasFactura.forEach(function (linea, indice) {
+          var fila = document.createElement('tr');
+          fila.innerHTML =
+            '<td><input type="text" data-campo="nombre" value="' + (linea.nombre || '') + '"></td>' +
+            '<td><input type="number" min="1" step="1" data-campo="cantidad" value="' + (linea.cantidad || '') + '"></td>' +
+            '<td><input type="number" min="1" step="1" data-campo="costoUnitario" value="' + (linea.costoUnitario || '') + '"></td>' +
+            '<td><input type="text" data-campo="categoria" value="' + (linea.categoria || '') + '" ' + (linea.esNuevo ? '' : 'hidden') + '></td>' +
+            '<td><input type="number" min="1" step="1" data-campo="precioVenta" value="' + (linea.precioVenta || '') + '" ' + (linea.esNuevo ? '' : 'hidden') + '></td>' +
+            '<td><button data-quitar="' + indice + '">quitar</button></td>';
+          Array.prototype.forEach.call(fila.querySelectorAll('input'), function (input) {
+            input.addEventListener('input', function () {
+              lineasFactura[indice][input.dataset.campo] = input.type === 'number' ? Number(input.value) : input.value;
+            });
+          });
+          fila.querySelector('[data-quitar]').addEventListener('click', function () {
+            lineasFactura.splice(indice, 1);
+            pintarTablaFactura();
+          });
+          cuerpo.appendChild(fila);
+        });
+        document.getElementById('tablaFactura').hidden = false;
+        document.getElementById('btnAgregarLineaFactura').hidden = false;
+        document.getElementById('btnConfirmarFactura').hidden = false;
+      }
+
+      document.getElementById('btnAgregarLineaFactura').addEventListener('click', function () {
+        lineasFactura.push({ nombre: '', cantidad: 1, costoUnitario: 0, productoId: '', esNuevo: true, categoria: '', precioVenta: 0 });
+        pintarTablaFactura();
+      });
+
+      document.getElementById('btnLeerFactura').addEventListener('click', function () {
+        var boton = this;
+        var archivo = document.getElementById('fotoFactura').files[0];
+        if (!archivo) { mostrarAviso('avisoFactura', 'Elija o tome una foto primero', true); return; }
+        if (archivo.size > 4 * 1024 * 1024) { mostrarAviso('avisoFactura', 'La foto pesa mas de 4MB', true); return; }
+        var lector = new FileReader();
+        lector.onload = function () {
+          var base64 = lector.result.split(',')[1];
+          boton.disabled = true;
+          mostrarAviso('avisoFactura', 'Leyendo factura...', false);
+          google.script.run.withSuccessHandler(function (respuesta) {
+            boton.disabled = false;
+            mostrarAviso('avisoFactura', respuesta.mensaje || (respuesta.ok ? 'Factura leida' : ''), !respuesta.ok);
+            lineasFactura = respuesta.lineas || [];
+            pintarTablaFactura();
+          }).apiLeerFactura(token, base64);
+        };
+        lector.readAsDataURL(archivo);
+      });
+
+      document.getElementById('btnConfirmarFactura').addEventListener('click', function () {
+        var boton = this;
+        boton.disabled = true;
+        google.script.run.withSuccessHandler(function (respuesta) {
+          boton.disabled = false;
+          mostrarAviso('avisoFactura', respuesta.mensaje, !respuesta.ok);
+          if (respuesta.ok) {
+            pintarProductos(respuesta.productos);
+            lineasFactura = [];
+            document.getElementById('tablaFactura').hidden = true;
+            document.getElementById('btnAgregarLineaFactura').hidden = true;
+            document.getElementById('btnConfirmarFactura').hidden = true;
+            document.getElementById('fotoFactura').value = '';
+          }
+        }).apiConfirmarIngresoInventario(token, lineasFactura);
+      });
+
       document.getElementById('btnGasto').addEventListener('click', function () {
         var boton = this;
         var seleccionados = [];

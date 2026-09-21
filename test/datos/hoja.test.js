@@ -6,7 +6,7 @@ const { crearLibroFalso } = require('../ayudas/libroFalso.js');
 
 test('el esquema define una hoja por entidad', () => {
   assert.deepStrictEqual(Object.keys(ESQUEMA).sort(), [
-    'GastosCompartidos', 'Pagos', 'Perdidas', 'Prestamos', 'Productos', 'Transacciones', 'Usuarios'
+    'GastosCompartidos', 'IngresosInventario', 'Pagos', 'Perdidas', 'Prestamos', 'Productos', 'Transacciones', 'Usuarios'
   ]);
   assert.strictEqual(ESQUEMA.Productos[0], 'id');
 });
