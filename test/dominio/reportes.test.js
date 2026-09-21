@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const { reporteGanancia } = require('../../src/dominio/reportes.js');
+const { reporteGanancia, reporteInventario } = require('../../src/dominio/reportes.js');
 
 const PRODUCTOS = [
   { id: 'p1', nombre: 'Cafe', costo: 900, precioVenta: 1500 },
@@ -125,4 +125,50 @@ test('reporteGastosCompartidos detalla el valor por persona', () => {
   const cumple = grupos[0].gastos.find(g => g.id === 'g1');
   assert.strictEqual(cumple.participantes, 3);
   assert.strictEqual(cumple.valorPorPersona, 10000);
+});
+
+test('reporteInventario agrupa los lotes activos por producto, del mas viejo al mas nuevo', () => {
+  const productos = [
+    { id: 'p1', nombre: 'Quatro', activo: true },
+    { id: 'p2', nombre: 'Cafe', activo: true }
+  ];
+  const lotes = [
+    { id: 'l2', productoId: 'p1', fecha: '2026-09-20T10:00:00.000Z', cantidadInicial: 6, cantidadRestante: 6, costoUnitario: 3000, estado: 'activo' },
+    { id: 'l1', productoId: 'p1', fecha: '2026-09-01T10:00:00.000Z', cantidadInicial: 3, cantidadRestante: 1, costoUnitario: 2925, estado: 'activo' },
+    { id: 'l3', productoId: 'p2', fecha: '2026-09-05T10:00:00.000Z', cantidadInicial: 10, cantidadRestante: 4, costoUnitario: 800, estado: 'activo' }
+  ];
+  const reporte = reporteInventario(lotes, productos);
+
+  assert.strictEqual(reporte.valorTotal, 24125);
+
+  const quatro = reporte.porProducto[0];
+  assert.strictEqual(quatro.nombre, 'Quatro');
+  assert.strictEqual(quatro.cantidadTotal, 7);
+  assert.strictEqual(quatro.valorTotal, 20925);
+  assert.strictEqual(quatro.lotes[0].costoUnitario, 2925);
+  assert.strictEqual(quatro.lotes[0].valor, 2925);
+  assert.strictEqual(quatro.lotes[1].costoUnitario, 3000);
+
+  const cafe = reporte.porProducto[1];
+  assert.strictEqual(cafe.nombre, 'Cafe');
+  assert.strictEqual(cafe.cantidadTotal, 4);
+  assert.strictEqual(cafe.valorTotal, 3200);
+});
+
+test('reporteInventario ignora lotes anulados o agotados', () => {
+  const productos = [{ id: 'p1', nombre: 'Quatro', activo: true }];
+  const lotes = [
+    { id: 'l1', productoId: 'p1', fecha: '2026-09-01T10:00:00.000Z', cantidadInicial: 3, cantidadRestante: 0, costoUnitario: 2925, estado: 'activo' },
+    { id: 'l2', productoId: 'p1', fecha: '2026-09-02T10:00:00.000Z', cantidadInicial: 3, cantidadRestante: 3, costoUnitario: 2925, estado: 'anulado' }
+  ];
+  const reporte = reporteInventario(lotes, productos);
+  assert.strictEqual(reporte.valorTotal, 0);
+  assert.deepStrictEqual(reporte.porProducto, []);
+});
+
+test('reporteInventario no lista productos sin lotes', () => {
+  const productos = [{ id: 'p1', nombre: 'Quatro', activo: true }];
+  const reporte = reporteInventario([], productos);
+  assert.strictEqual(reporte.valorTotal, 0);
+  assert.deepStrictEqual(reporte.porProducto, []);
 });

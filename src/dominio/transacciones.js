@@ -20,6 +20,9 @@ function crearTransaccionFiado(datos) {
   if (!datos.producto) {
     throw new Error('Falta el producto de la transaccion');
   }
+  if (!datos.consumo || !datos.consumo.consumos) {
+    throw new Error('Falta el consumo de lotes de la transaccion');
+  }
   if (ORIGENES_VALIDOS.indexOf(datos.origen) === -1) {
     throw new Error('Origen invalido: ' + datos.origen);
   }
@@ -44,7 +47,8 @@ function crearTransaccionFiado(datos) {
     anuladoPor: '',
     anuladoFecha: '',
     anuladoMotivo: '',
-    costoUnitario: datos.producto.costo
+    costoUnitario: datos.consumo.costoUnitarioPromedio,
+    lotesConsumidos: JSON.stringify(datos.consumo.consumos)
   };
 }
 

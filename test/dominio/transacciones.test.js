@@ -7,6 +7,13 @@ const PRODUCTO = {
   costo: 800, precioVenta: 1500, stockActual: 10, activo: true
 };
 
+const CONSUMO = {
+  consumos: [{ loteId: 'l1', cantidad: 2, costoUnitario: 800 }],
+  costoTotal: 1600,
+  costoUnitarioPromedio: 800,
+  lotesActualizados: []
+};
+
 function datosBase(cambios) {
   return Object.assign({
     id: 't1',
@@ -14,7 +21,8 @@ function datosBase(cambios) {
     producto: PRODUCTO,
     cantidad: 2,
     fecha: '2026-09-12T10:00:00.000Z',
-    origen: 'autoregistro'
+    origen: 'autoregistro',
+    consumo: CONSUMO
   }, cambios || {});
 }
 
@@ -88,7 +96,26 @@ test('anularTransaccion rechaza anular dos veces', () => {
   }), /ya esta anulad/i);
 });
 
-test('crearTransaccionFiado guarda el costo del producto al momento de la venta', () => {
+test('crearTransaccionFiado guarda el costo promedio de los lotes consumidos', () => {
   const transaccion = crearTransaccionFiado(datosBase());
-  assert.strictEqual(transaccion.costoUnitario, PRODUCTO.costo);
+  assert.strictEqual(transaccion.costoUnitario, 800);
+});
+
+test('crearTransaccionFiado guarda de que lotes salio la venta', () => {
+  const consumo = {
+    consumos: [
+      { loteId: 'viejo', cantidad: 1, costoUnitario: 2925 },
+      { loteId: 'nuevo', cantidad: 1, costoUnitario: 3000 }
+    ],
+    costoTotal: 5925,
+    costoUnitarioPromedio: 2963,
+    lotesActualizados: []
+  };
+  const transaccion = crearTransaccionFiado(datosBase({ consumo: consumo }));
+  assert.strictEqual(transaccion.costoUnitario, 2963);
+  assert.deepStrictEqual(JSON.parse(transaccion.lotesConsumidos), consumo.consumos);
+});
+
+test('crearTransaccionFiado exige el consumo de lotes', () => {
+  assert.throws(() => crearTransaccionFiado(datosBase({ consumo: null })), /lote/i);
 });

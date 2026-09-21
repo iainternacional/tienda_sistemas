@@ -57,19 +57,45 @@
           </div>
 
           <div class="bloque">
-            <h3>Ajustar stock</h3>
+            <h3>Sumar al inventario</h3>
+            <p class="sub">Para unidades que aparecieron en un conteo y el sistema no tenia. Para dar de baja unidades, use "Registrar perdida".</p>
             <div class="rejilla">
               <div class="campo">
                 <label for="productoAjuste">Producto</label>
                 <select id="productoAjuste"></select>
               </div>
               <div class="campo">
-                <label for="stockNuevo">Nuevo stock</label>
-                <input id="stockNuevo" type="number" min="0" step="1">
+                <label for="cantidadAjuste">Cantidad a sumar</label>
+                <input id="cantidadAjuste" type="number" min="1" step="1" value="1">
               </div>
-              <button id="btnAjustarStock" class="campo-ancho">Guardar stock</button>
+              <div class="campo">
+                <label for="costoAjuste">Costo por unidad</label>
+                <input id="costoAjuste" type="number" min="1" step="1">
+              </div>
+              <button id="btnAjustarStock" class="campo-ancho">Sumar al inventario</button>
               <div id="avisoStock" class="campo-ancho"></div>
             </div>
+          </div>
+
+          <div class="bloque">
+            <h3>Ingresar factura</h3>
+            <p class="sub">Tome una foto de la factura del proveedor. La IA extrae las lineas; revise cantidad y costo de cada una antes de confirmar.</p>
+            <div class="rejilla">
+              <div class="campo campo-ancho">
+                <label for="fotoFactura">Foto de la factura</label>
+                <input id="fotoFactura" type="file" accept="image/*" capture="environment">
+              </div>
+              <button id="btnLeerFactura" class="campo-ancho">Leer factura</button>
+              <div id="avisoFactura" class="campo-ancho"></div>
+            </div>
+            <table id="tablaFactura" hidden>
+              <thead>
+                <tr><th>Nombre</th><th>Cantidad</th><th class="valor">Costo unitario</th><th>Categoria (si es nuevo)</th><th class="valor">Precio venta (si es nuevo)</th><th></th></tr>
+              </thead>
+              <tbody id="cuerpoTablaFactura"></tbody>
+            </table>
+            <button id="btnAgregarLineaFactura" hidden>Agregar linea</button>
+            <button id="btnConfirmarFactura" hidden>Confirmar ingreso a inventario</button>
           </div>
         </div>
       </details>
@@ -243,6 +269,14 @@
                 <tr><th>Fecha</th><th>Producto</th><th>Motivo</th><th class="valor">Valor</th></tr>
               </thead>
               <tbody id="tablaPerdidas"></tbody>
+            </table>
+            <h4>Inventario por lotes</h4>
+            <p class="sub" id="valorInventario"></p>
+            <table>
+              <thead>
+                <tr><th>Producto</th><th class="valor">Cant.</th><th class="valor">Costo unit.</th><th class="valor">Valor</th></tr>
+              </thead>
+              <tbody id="tablaInventario"></tbody>
             </table>
           </div>
 
@@ -430,11 +464,16 @@
         google.script.run.withSuccessHandler(function (respuesta) {
           boton.disabled = false;
           mostrarAviso('avisoStock', respuesta.mensaje, !respuesta.ok);
-          if (respuesta.ok) { pintarProductos(respuesta.productos); }
-        }).apiActualizarProducto(
+          if (respuesta.ok) {
+            pintarProductos(respuesta.productos);
+            document.getElementById('cantidadAjuste').value = '1';
+            document.getElementById('costoAjuste').value = '';
+          }
+        }).apiAjustarStockSubir(
           token,
           document.getElementById('productoAjuste').value,
-          { stockActual: Number(document.getElementById('stockNuevo').value) }
+          Number(document.getElementById('cantidadAjuste').value),
+          Number(document.getElementById('costoAjuste').value)
         );
       });
 
@@ -637,6 +676,21 @@
           pintarFilas('tablaPerdidas', respuesta.perdidas.lineas.map(function (fila) {
             return [fechaCorta(fila.fecha), fila.producto, fila.motivo, pesos(fila.valor)];
           }));
+
+          document.getElementById('valorInventario').textContent =
+            'Valor total del inventario: ' + pesos(respuesta.inventario.valorTotal);
+          var filasInventario = [];
+          respuesta.inventario.porProducto.forEach(function (fila) {
+            fila.lotes.forEach(function (lote, indice) {
+              filasInventario.push([
+                indice === 0 ? fila.nombre : '',
+                String(lote.cantidadRestante),
+                pesos(lote.costoUnitario),
+                pesos(lote.valor)
+              ]);
+            });
+          });
+          pintarFilas('tablaInventario', filasInventario);
         }).apiReportes(
           token,
           document.getElementById('desdeReporte').value,

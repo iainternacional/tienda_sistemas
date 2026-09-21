@@ -1,7 +1,6 @@
 if (typeof require !== 'undefined') {
   var dineroModulo = require('./dinero.js');
   var esEnteroPositivo = dineroModulo.esEnteroPositivo;
-  var calcularValorTotal = dineroModulo.calcularValorTotal;
   var productosModulo = require('./productos.js');
   var hayStockSuficiente = productosModulo.hayStockSuficiente;
 }
@@ -12,6 +11,9 @@ function crearPerdida(datos) {
   }
   if (!datos.producto) {
     throw new Error('Falta el producto de la perdida');
+  }
+  if (!datos.consumo || !datos.consumo.consumos) {
+    throw new Error('Falta el consumo de lotes de la perdida');
   }
   if (!datos.motivo || String(datos.motivo).trim() === '') {
     throw new Error('Debe indicar el motivo de la perdida');
@@ -28,12 +30,13 @@ function crearPerdida(datos) {
     productoNombre: datos.producto.nombre,
     cantidad: datos.cantidad,
     motivo: String(datos.motivo).trim(),
-    valor: calcularValorTotal(datos.cantidad, datos.producto.costo),
+    valor: datos.consumo.costoTotal,
     fecha: datos.fecha,
     estado: 'pendiente',
     anuladoPor: '',
     anuladoFecha: '',
-    anuladoMotivo: ''
+    anuladoMotivo: '',
+    lotesConsumidos: JSON.stringify(datos.consumo.consumos)
   };
 }
 

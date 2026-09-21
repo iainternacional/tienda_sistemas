@@ -145,12 +145,60 @@ function reporteGastosCompartidos(gastos) {
   return orden.map(function (motivo) { return grupos[motivo]; });
 }
 
+function reporteInventario(lotes, productos) {
+  const nombrePorId = {};
+  (productos || []).forEach(function (producto) {
+    nombrePorId[producto.id] = producto.nombre;
+  });
+
+  const grupos = {};
+  (lotes || [])
+    .filter(function (lote) {
+      return lote.estado === 'activo' && Number(lote.cantidadRestante) > 0;
+    })
+    .sort(function (a, b) { return String(a.fecha).localeCompare(String(b.fecha)); })
+    .forEach(function (lote) {
+      const clave = lote.productoId;
+      if (!grupos[clave]) {
+        grupos[clave] = {
+          productoId: clave,
+          nombre: nombrePorId[clave] || clave,
+          cantidadTotal: 0,
+          valorTotal: 0,
+          lotes: []
+        };
+      }
+      const grupo = grupos[clave];
+      const cantidad = Number(lote.cantidadRestante);
+      const costoUnitario = Number(lote.costoUnitario);
+      const valor = cantidad * costoUnitario;
+      grupo.cantidadTotal += cantidad;
+      grupo.valorTotal += valor;
+      grupo.lotes.push({
+        fecha: lote.fecha,
+        cantidadRestante: cantidad,
+        costoUnitario: costoUnitario,
+        valor: valor
+      });
+    });
+
+  const porProducto = Object.keys(grupos)
+    .map(function (clave) { return grupos[clave]; })
+    .sort(function (a, b) { return b.valorTotal - a.valorTotal; });
+
+  return {
+    valorTotal: porProducto.reduce(function (suma, fila) { return suma + fila.valorTotal; }, 0),
+    porProducto: porProducto
+  };
+}
+
 if (typeof module !== 'undefined') {
   module.exports = {
     reporteGanancia,
     reportePerdidas,
     reporteCartera,
     reporteGastosCompartidos,
+    reporteInventario,
     dentroDelRango,
     noAnulado
   };
