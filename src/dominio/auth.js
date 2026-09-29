@@ -1,3 +1,5 @@
+const DOMINIO_CORPORATIVO = 'ipuc.org.co';
+
 function hashClave(clave, salt, funcionHash) {
   return funcionHash(String(salt) + ':' + String(clave));
 }
@@ -115,6 +117,9 @@ function validarUsuarioCorporativoNuevo(datos) {
     errores.push('El correo es obligatorio');
   } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     errores.push('El correo no tiene un formato valido');
+  } else if (!email.endsWith('@' + DOMINIO_CORPORATIVO)) {
+    errores.push('El correo debe ser del dominio @' + DOMINIO_CORPORATIVO +
+      '. Para compradores externos use "Comprador con usuario y clave"');
   }
   return { valido: errores.length === 0, errores: errores };
 }
@@ -164,6 +169,7 @@ if (typeof module !== 'undefined') {
     crearUsuarioComprador,
     validarUsuarioCorporativoNuevo,
     crearUsuarioCorporativo,
-    buscarUsuarioPorEmailCorporativo
+    buscarUsuarioPorEmailCorporativo,
+    DOMINIO_CORPORATIVO
   };
 }

@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const { crearTransaccionFiado, anularTransaccion, esActiva } = require('../../src/dominio/transacciones.js');
+const { crearTransaccionFiado, anularTransaccion, esActiva, validarLineasFiado } = require('../../src/dominio/transacciones.js');
 
 const PRODUCTO = {
   id: 'p1', nombre: 'Cafe', categoria: 'Bebidas',
@@ -118,4 +118,47 @@ test('crearTransaccionFiado guarda de que lotes salio la venta', () => {
 
 test('crearTransaccionFiado exige el consumo de lotes', () => {
   assert.throws(() => crearTransaccionFiado(datosBase({ consumo: null })), /lote/i);
+});
+
+test('validarLineasFiado rechaza un arreglo vacio', () => {
+  assert.throws(() => validarLineasFiado([]), /al menos una linea/i);
+});
+
+test('validarLineasFiado rechaza si no es un arreglo', () => {
+  assert.throws(() => validarLineasFiado(null), /al menos una linea/i);
+});
+
+test('validarLineasFiado exige productoId en cada linea', () => {
+  assert.throws(
+    () => validarLineasFiado([{ productoId: '', cantidad: 2 }]),
+    /Linea 1.*producto/i
+  );
+});
+
+test('validarLineasFiado exige cantidad entera positiva', () => {
+  assert.throws(
+    () => validarLineasFiado([{ productoId: 'p1', cantidad: 0 }]),
+    /Linea 1.*cantidad/i
+  );
+  assert.throws(
+    () => validarLineasFiado([{ productoId: 'p1', cantidad: 1.5 }]),
+    /Linea 1.*cantidad/i
+  );
+});
+
+test('validarLineasFiado acepta un arreglo valido con varias lineas', () => {
+  assert.doesNotThrow(() => validarLineasFiado([
+    { productoId: 'p1', cantidad: 2 },
+    { productoId: 'p2', cantidad: 1 }
+  ]));
+});
+
+test('validarLineasFiado numera el error por la linea que falla, no por el indice 0', () => {
+  assert.throws(
+    () => validarLineasFiado([
+      { productoId: 'p1', cantidad: 2 },
+      { productoId: '', cantidad: 1 }
+    ]),
+    /Linea 2/
+  );
 });

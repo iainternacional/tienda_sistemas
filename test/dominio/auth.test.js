@@ -205,6 +205,12 @@ test('validarUsuarioCorporativoNuevo rechaza un correo sin formato valido', () =
   assert.match(resultado.errores.join('. '), /correo/i);
 });
 
+test('validarUsuarioCorporativoNuevo rechaza un correo fuera del dominio ipuc.org.co', () => {
+  const resultado = validarUsuarioCorporativoNuevo(Object.assign({}, DATOS_CORPORATIVOS_VALIDOS, { email: 'laura.gomez@gmail.com' }));
+  assert.strictEqual(resultado.valido, false);
+  assert.match(resultado.errores.join('. '), /ipuc\.org\.co/);
+});
+
 test('crearUsuarioCorporativo arma un comprador con login de google corporativo', () => {
   const creado = crearUsuarioCorporativo(DATOS_CORPORATIVOS_VALIDOS);
   assert.strictEqual(creado.id, 'u10');
@@ -231,6 +237,13 @@ test('crearUsuarioCorporativo falla si los datos no son validos', () => {
   assert.throws(
     () => crearUsuarioCorporativo(Object.assign({}, DATOS_CORPORATIVOS_VALIDOS, { email: 'no-es-correo' })),
     /correo/i
+  );
+});
+
+test('crearUsuarioCorporativo falla si el correo es de otro dominio', () => {
+  assert.throws(
+    () => crearUsuarioCorporativo(Object.assign({}, DATOS_CORPORATIVOS_VALIDOS, { email: 'laura.gomez@otraempresa.com' })),
+    /ipuc\.org\.co/
   );
 });
 

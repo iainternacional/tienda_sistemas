@@ -52,6 +52,22 @@ function crearTransaccionFiado(datos) {
   };
 }
 
+function validarLineasFiado(lineas) {
+  if (!Array.isArray(lineas) || lineas.length === 0) {
+    throw new Error('Debe haber al menos una linea para registrar');
+  }
+  lineas.forEach(function (linea, indice) {
+    const numero = indice + 1;
+    const productoId = String((linea && linea.productoId) || '').trim();
+    if (productoId === '') {
+      throw new Error('Linea ' + numero + ': falta el producto');
+    }
+    if (!esEnteroPositivo(Number(linea.cantidad))) {
+      throw new Error('Linea ' + numero + ': la cantidad debe ser un entero positivo');
+    }
+  });
+}
+
 function esActiva(transaccion) {
   return transaccion.estado === 'pendiente' || transaccion.estado === 'pagado';
 }
@@ -61,5 +77,5 @@ function anularTransaccion(transaccion, datos) {
 }
 
 if (typeof module !== 'undefined') {
-  module.exports = { crearTransaccionFiado, anularTransaccion, esActiva };
+  module.exports = { crearTransaccionFiado, anularTransaccion, esActiva, validarLineasFiado };
 }

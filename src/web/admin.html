@@ -25,11 +25,13 @@
             <div class="rejilla">
               <div class="campo">
                 <label for="nombre">Nombre</label>
-                <input id="nombre" type="text">
+                <input id="nombre" type="text" list="listaNombresProducto" autocomplete="off">
+                <datalist id="listaNombresProducto"></datalist>
               </div>
               <div class="campo">
                 <label for="alias">Alias (opcional)</label>
-                <input id="alias" type="text">
+                <input id="alias" type="text" list="listaAliasProducto" autocomplete="off">
+                <datalist id="listaAliasProducto"></datalist>
               </div>
               <div class="campo">
                 <label for="categoria">Categoria</label>
@@ -73,8 +75,12 @@
                 <input id="cantidadAjuste" type="number" min="1" step="1" value="1">
               </div>
               <div class="campo">
-                <label for="costoAjuste">Costo por unidad</label>
+                <label for="costoAjuste">Costo total de la compra</label>
                 <input id="costoAjuste" type="number" min="1" step="1">
+              </div>
+              <div class="campo">
+                <label for="costoUnitarioAjusteCalculado">Costo por unidad (calculado)</label>
+                <input id="costoUnitarioAjusteCalculado" type="text" readonly>
               </div>
               <button id="btnAjustarStock" class="campo-ancho">Sumar al inventario</button>
               <div id="avisoStock" class="campo-ancho"></div>
@@ -129,20 +135,46 @@
           </div>
 
           <div class="bloque">
+            <h3>Comprador con usuario y clave</h3>
+            <p class="sub">Para compradores sin correo @ipuc.org.co. Entrega el usuario y la clave que ingreses aqui.</p>
+            <div class="rejilla">
+              <div class="campo">
+                <label for="nombreCompradorClave">Nombre</label>
+                <input id="nombreCompradorClave" type="text">
+              </div>
+              <div class="campo">
+                <label for="areaCompradorClave">Area</label>
+                <input id="areaCompradorClave" type="text">
+              </div>
+              <div class="campo">
+                <label for="usuarioCompradorClave">Usuario</label>
+                <input id="usuarioCompradorClave" type="text" autocomplete="off">
+              </div>
+              <div class="campo">
+                <label for="claveCompradorClave">Clave</label>
+                <input id="claveCompradorClave" type="text" autocomplete="off">
+              </div>
+              <button id="btnCrearCompradorClave" class="campo-ancho">Crear comprador</button>
+              <div id="avisoCompradorClave" class="campo-ancho"></div>
+            </div>
+          </div>
+
+          <div class="bloque">
             <h3>Registrar fiado a nombre de alguien</h3>
             <div class="rejilla">
               <div class="campo">
                 <label for="usuarioDestino">Comprador</label>
                 <select id="usuarioDestino"></select>
               </div>
-              <div class="campo">
-                <label for="productoAdmin">Producto</label>
-                <select id="productoAdmin"></select>
-              </div>
-              <div class="campo">
-                <label for="cantidadAdmin">Cantidad</label>
-                <input id="cantidadAdmin" type="number" min="1" step="1" value="1">
-              </div>
+            </div>
+            <table>
+              <thead>
+                <tr><th>Producto</th><th class="valor">Cantidad</th><th></th></tr>
+              </thead>
+              <tbody id="cuerpoTablaFiadoAdmin"></tbody>
+            </table>
+            <button id="btnAgregarLineaFiadoAdmin">Agregar linea</button>
+            <div class="rejilla">
               <button id="btnFiadoAdmin" class="campo-ancho">Registrar</button>
               <div id="avisoFiadoAdmin" class="campo-ancho"></div>
             </div>
@@ -351,6 +383,22 @@
       document.getElementById('stockInicial').addEventListener('input', calcularPrecioVentaSugerido);
       document.getElementById('porcentajeAumento').addEventListener('input', calcularPrecioVentaSugerido);
 
+      function costoUnitarioAjuste() {
+        var costoTotal = Number(document.getElementById('costoAjuste').value);
+        var cantidad = Number(document.getElementById('cantidadAjuste').value);
+        if (!costoTotal) { return 0; }
+        if (!cantidad) { return costoTotal; }
+        return Math.round(costoTotal / cantidad);
+      }
+
+      function calcularCostoUnitarioAjuste() {
+        var costoUnitario = costoUnitarioAjuste();
+        document.getElementById('costoUnitarioAjusteCalculado').value = costoUnitario ? pesos(costoUnitario) : '';
+      }
+
+      document.getElementById('costoAjuste').addEventListener('input', calcularCostoUnitarioAjuste);
+      document.getElementById('cantidadAjuste').addEventListener('input', calcularCostoUnitarioAjuste);
+
       function llenarSelectProductos(select, productos) {
         select.innerHTML = '';
         productos.forEach(function (producto) {
@@ -362,17 +410,85 @@
         });
       }
 
+      function llenarDatalist(datalist, valores) {
+        datalist.innerHTML = '';
+        valores.forEach(function (valor) {
+          var opcion = document.createElement('option');
+          opcion.value = valor;
+          datalist.appendChild(opcion);
+        });
+      }
+
       function pintarProductos(productos) {
         productosCache = productos;
         llenarSelectProductos(document.getElementById('productoAjuste'), productos);
-        llenarSelectProductos(document.getElementById('productoAdmin'), productos);
         llenarSelectProductos(document.getElementById('productoPerdida'), productos);
+        llenarDatalist(document.getElementById('listaNombresProducto'), productos.map(function (p) { return p.nombre; }));
+        llenarDatalist(document.getElementById('listaAliasProducto'), productos.map(function (p) { return p.alias; }).filter(function (a) { return a; }));
+        pintarTablaFiadoAdmin();
       }
 
+      var lineasFiadoAdmin = [{ productoId: '', cantidad: 1 }];
+
+      function pintarTablaFiadoAdmin() {
+        var cuerpo = document.getElementById('cuerpoTablaFiadoAdmin');
+        cuerpo.innerHTML = '';
+        lineasFiadoAdmin.forEach(function (linea, indice) {
+          var fila = document.createElement('tr');
+
+          var celdaProducto = document.createElement('td');
+          var select = document.createElement('select');
+          llenarSelectProductos(select, productosCache);
+          var opcionVacia = document.createElement('option');
+          opcionVacia.value = '';
+          opcionVacia.textContent = 'Seleccione un producto';
+          select.insertBefore(opcionVacia, select.firstChild);
+          select.value = linea.productoId;
+          if (select.value !== linea.productoId) { select.value = ''; linea.productoId = ''; }
+          select.addEventListener('change', function () {
+            lineasFiadoAdmin[indice].productoId = select.value;
+          });
+          celdaProducto.appendChild(select);
+
+          var celdaCantidad = document.createElement('td');
+          var inputCantidad = document.createElement('input');
+          inputCantidad.type = 'number';
+          inputCantidad.min = '1';
+          inputCantidad.step = '1';
+          inputCantidad.value = linea.cantidad;
+          inputCantidad.addEventListener('input', function () {
+            lineasFiadoAdmin[indice].cantidad = Number(inputCantidad.value);
+          });
+          celdaCantidad.appendChild(inputCantidad);
+
+          var celdaQuitar = document.createElement('td');
+          var botonQuitar = document.createElement('button');
+          botonQuitar.textContent = 'quitar';
+          botonQuitar.disabled = lineasFiadoAdmin.length === 1;
+          botonQuitar.addEventListener('click', function () {
+            if (lineasFiadoAdmin.length > 1) {
+              lineasFiadoAdmin.splice(indice, 1);
+              pintarTablaFiadoAdmin();
+            }
+          });
+          celdaQuitar.appendChild(botonQuitar);
+
+          fila.appendChild(celdaProducto);
+          fila.appendChild(celdaCantidad);
+          fila.appendChild(celdaQuitar);
+          cuerpo.appendChild(fila);
+        });
+      }
+
+      document.getElementById('btnAgregarLineaFiadoAdmin').addEventListener('click', function () {
+        lineasFiadoAdmin.push({ productoId: '', cantidad: 1 });
+        pintarTablaFiadoAdmin();
+      });
+
       function pintarUsuarios(usuarios) {
-        ['usuarioDestino', 'usuarioPrestamo', 'participantesGasto', 'usuarioPago'].forEach(function (idSelect) {
+        ['usuarioDestino', 'usuarioPrestamo', 'usuarioPago'].forEach(function (idSelect) {
           var select = document.getElementById(idSelect);
-          select.innerHTML = '';
+          select.innerHTML = '<option value="">Seleccione un comprador</option>';
           usuarios.forEach(function (usuario) {
             var opcion = document.createElement('option');
             opcion.value = usuario.id;
@@ -381,6 +497,17 @@
           });
         });
 
+        var selectParticipantes = document.getElementById('participantesGasto');
+        selectParticipantes.innerHTML = '';
+        usuarios.forEach(function (usuario) {
+          var opcion = document.createElement('option');
+          opcion.value = usuario.id;
+          opcion.textContent = usuario.nombre;
+          selectParticipantes.appendChild(opcion);
+        });
+      }
+
+      function pintarCompradorReporte(usuarios) {
         var selectFiltro = document.getElementById('compradorReporte');
         var valorPrevio = selectFiltro.value;
         selectFiltro.innerHTML = '<option value="">Todos los compradores</option>';
@@ -450,6 +577,9 @@
           google.script.run.withSuccessHandler(function (respuesta) {
             pintarUsuarios(respuesta.usuarios);
           }).apiListarUsuarios(token);
+          google.script.run.withSuccessHandler(function (respuesta) {
+            pintarCompradorReporte(respuesta.usuarios);
+          }).apiListarUsuariosParaReportes(token);
           cargarMovimientos();
         }).apiObtenerEstado(token);
       }
@@ -486,6 +616,9 @@
           mostrarAviso('avisoComprador', respuesta.mensaje, !respuesta.ok);
           if (respuesta.ok) {
             pintarUsuarios(respuesta.usuarios);
+            google.script.run.withSuccessHandler(function (respuestaReportes) {
+              pintarCompradorReporte(respuestaReportes.usuarios);
+            }).apiListarUsuariosParaReportes(token);
             ['nombreComprador', 'areaComprador', 'emailComprador'].forEach(function (id) {
               document.getElementById(id).value = '';
             });
@@ -494,6 +627,29 @@
           nombre: document.getElementById('nombreComprador').value,
           area: document.getElementById('areaComprador').value,
           email: document.getElementById('emailComprador').value
+        });
+      });
+
+      document.getElementById('btnCrearCompradorClave').addEventListener('click', function () {
+        var boton = this;
+        boton.disabled = true;
+        google.script.run.withSuccessHandler(function (respuesta) {
+          boton.disabled = false;
+          mostrarAviso('avisoCompradorClave', respuesta.mensaje, !respuesta.ok);
+          if (respuesta.ok) {
+            pintarUsuarios(respuesta.usuarios);
+            google.script.run.withSuccessHandler(function (respuestaReportes) {
+              pintarCompradorReporte(respuestaReportes.usuarios);
+            }).apiListarUsuariosParaReportes(token);
+            ['nombreCompradorClave', 'areaCompradorClave', 'usuarioCompradorClave', 'claveCompradorClave'].forEach(function (id) {
+              document.getElementById(id).value = '';
+            });
+          }
+        }).apiCrearUsuarioComprador(token, {
+          nombre: document.getElementById('nombreCompradorClave').value,
+          area: document.getElementById('areaCompradorClave').value,
+          usuario: document.getElementById('usuarioCompradorClave').value,
+          clave: document.getElementById('claveCompradorClave').value
         });
       });
 
@@ -507,12 +663,13 @@
             pintarProductos(respuesta.productos);
             document.getElementById('cantidadAjuste').value = '1';
             document.getElementById('costoAjuste').value = '';
+            document.getElementById('costoUnitarioAjusteCalculado').value = '';
           }
         }).apiAjustarStockSubir(
           token,
           document.getElementById('productoAjuste').value,
           Number(document.getElementById('cantidadAjuste').value),
-          Number(document.getElementById('costoAjuste').value)
+          costoUnitarioAjuste()
         );
       });
 
@@ -522,12 +679,15 @@
         google.script.run.withSuccessHandler(function (respuesta) {
           boton.disabled = false;
           mostrarAviso('avisoFiadoAdmin', respuesta.mensaje, !respuesta.ok);
-          if (respuesta.ok) { cargarTodo(); }
+          if (respuesta.ok) {
+            lineasFiadoAdmin = [{ productoId: '', cantidad: 1 }];
+            pintarTablaFiadoAdmin();
+            cargarTodo();
+          }
         }).apiRegistrarFiadoComoAdmin(
           token,
           document.getElementById('usuarioDestino').value,
-          document.getElementById('productoAdmin').value,
-          Number(document.getElementById('cantidadAdmin').value)
+          lineasFiadoAdmin
         );
       });
 

@@ -108,39 +108,69 @@ function apiObtenerEstado(token) {
   return estadoDeUsuario(usuario);
 }
 
+function registrarFiadoSinBloqueo(libro, usuario, productoId, cantidad, origen) {
+  const productos = leerTodo(libro, 'Productos');
+  let producto = null;
+  for (let i = 0; i < productos.length; i++) {
+    if (productos[i].id === productoId) {
+      producto = productos[i];
+      break;
+    }
+  }
+  if (!producto || producto.activo !== true) {
+    throw new Error('El producto no existe o esta inactivo');
+  }
+  const consumo = consumirDeLotes(leerTodo(libro, 'Lotes'), producto.id, cantidad, producto.nombre);
+  const transaccion = crearTransaccionFiado({
+    id: nuevoId(),
+    usuarioId: usuario.id,
+    producto: producto,
+    cantidad: cantidad,
+    fecha: ahoraIso(),
+    origen: origen,
+    consumo: consumo
+  });
+  const actualizado = descontarStock(producto, cantidad);
+  agregarFila(libro, 'Transacciones', transaccion);
+  consumo.lotesActualizados.forEach(function (lote) {
+    actualizarPorId(libro, 'Lotes', lote.id, { cantidadRestante: lote.cantidadRestante });
+  });
+  actualizarPorId(libro, 'Productos', producto.id, { stockActual: actualizado.stockActual });
+  return transaccion;
+}
+
 function registrarFiado(usuario, productoId, cantidad, origen) {
+  const bloqueo = LockService.getScriptLock();
+  bloqueo.waitLock(30000);
+  try {
+    return registrarFiadoSinBloqueo(obtenerLibro(), usuario, productoId, cantidad, origen);
+  } finally {
+    bloqueo.releaseLock();
+  }
+}
+
+function registrarFiadoMultiple(usuario, lineas, origen) {
   const bloqueo = LockService.getScriptLock();
   bloqueo.waitLock(30000);
   try {
     const libro = obtenerLibro();
     const productos = leerTodo(libro, 'Productos');
-    let producto = null;
-    for (let i = 0; i < productos.length; i++) {
-      if (productos[i].id === productoId) {
-        producto = productos[i];
-        break;
+    const cantidadesPorProducto = {};
+    lineas.forEach(function (linea) {
+      cantidadesPorProducto[linea.productoId] = (cantidadesPorProducto[linea.productoId] || 0) + Number(linea.cantidad);
+    });
+    Object.keys(cantidadesPorProducto).forEach(function (productoId) {
+      const producto = productos.filter(function (p) { return p.id === productoId; })[0];
+      if (!producto || producto.activo !== true) {
+        throw new Error('El producto no existe o esta inactivo');
       }
-    }
-    if (!producto || producto.activo !== true) {
-      throw new Error('El producto no existe o esta inactivo');
-    }
-    const consumo = consumirDeLotes(leerTodo(libro, 'Lotes'), producto.id, cantidad, producto.nombre);
-    const transaccion = crearTransaccionFiado({
-      id: nuevoId(),
-      usuarioId: usuario.id,
-      producto: producto,
-      cantidad: cantidad,
-      fecha: ahoraIso(),
-      origen: origen,
-      consumo: consumo
+      if (!hayStockSuficiente(producto, cantidadesPorProducto[productoId])) {
+        throw new Error('Stock insuficiente para ' + producto.nombre);
+      }
     });
-    const actualizado = descontarStock(producto, cantidad);
-    agregarFila(libro, 'Transacciones', transaccion);
-    consumo.lotesActualizados.forEach(function (lote) {
-      actualizarPorId(libro, 'Lotes', lote.id, { cantidadRestante: lote.cantidadRestante });
+    return lineas.map(function (linea) {
+      return registrarFiadoSinBloqueo(libro, usuario, linea.productoId, Number(linea.cantidad), origen);
     });
-    actualizarPorId(libro, 'Productos', producto.id, { stockActual: actualizado.stockActual });
-    return transaccion;
   } finally {
     bloqueo.releaseLock();
   }
@@ -229,7 +259,9 @@ function apiActualizarProducto(token, productoId, cambios) {
 
 function usuariosVisibles() {
   return leerTodo(obtenerLibro(), 'Usuarios')
-    .filter(function (usuario) { return usuario.activo === true; })
+    .filter(function (usuario) {
+      return usuario.activo === true && usuario.rol === 'comprador' && usuario.esPseudoUsuario !== true;
+    })
     .map(function (usuario) {
       return { id: usuario.id, nombre: usuario.nombre, esPseudoUsuario: usuario.esPseudoUsuario === true };
     });
@@ -239,6 +271,21 @@ function apiListarUsuarios(token) {
   try {
     exigirAdmin(token);
     return { ok: true, mensaje: '', usuarios: usuariosVisibles() };
+  } catch (error) {
+    return { ok: false, mensaje: error.message, usuarios: [] };
+  }
+}
+
+function usuariosParaReportes() {
+  return leerTodo(obtenerLibro(), 'Usuarios')
+    .filter(function (usuario) { return usuario.activo === true && usuario.esPseudoUsuario !== true; })
+    .map(function (usuario) { return { id: usuario.id, nombre: usuario.nombre }; });
+}
+
+function apiListarUsuariosParaReportes(token) {
+  try {
+    exigirAdmin(token);
+    return { ok: true, mensaje: '', usuarios: usuariosParaReportes() };
   } catch (error) {
     return { ok: false, mensaje: error.message, usuarios: [] };
   }
@@ -294,9 +341,10 @@ function apiCrearUsuarioCorporativo(token, datos) {
   }
 }
 
-function apiRegistrarFiadoComoAdmin(token, usuarioId, productoId, cantidad) {
+function apiRegistrarFiadoComoAdmin(token, usuarioId, lineas) {
   try {
     exigirAdmin(token);
+    validarLineasFiado(lineas);
     const usuarios = leerTodo(obtenerLibro(), 'Usuarios');
     let destino = null;
     for (let i = 0; i < usuarios.length; i++) {
@@ -308,8 +356,12 @@ function apiRegistrarFiadoComoAdmin(token, usuarioId, productoId, cantidad) {
     if (!destino) {
       return { ok: false, mensaje: 'No se encontro el usuario' };
     }
-    const transaccion = registrarFiado(destino, productoId, Number(cantidad), 'admin');
-    return { ok: true, mensaje: 'Registrado a ' + destino.nombre + ': ' + transaccion.cantidad + ' x ' + transaccion.productoNombre };
+    const transacciones = registrarFiadoMultiple(destino, lineas, 'admin');
+    const totalUnidades = transacciones.reduce(function (suma, t) { return suma + t.cantidad; }, 0);
+    return {
+      ok: true,
+      mensaje: 'Registrado a ' + destino.nombre + ': ' + transacciones.length + ' producto(s), ' + totalUnidades + ' unidad(es)'
+    };
   } catch (error) {
     return { ok: false, mensaje: error.message };
   }
@@ -479,7 +531,7 @@ function apiLeerFactura(token, imagenBase64) {
       '"costoUnitario": 0}]}. cantidad y costoUnitario son numeros enteros. Si un dato ' +
       'no es legible, omite esa linea por completo.';
     const respuesta = UrlFetchApp.fetch(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + apiKey,
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=' + apiKey,
       {
         method: 'post',
         contentType: 'application/json',
