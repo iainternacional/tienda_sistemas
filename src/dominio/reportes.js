@@ -23,7 +23,7 @@ function noAnulado(registro) {
   return registro.estado !== 'anulado';
 }
 
-function reporteGanancia(transacciones, productos, desde, hasta) {
+function reporteGanancia(transacciones, productos, desde, hasta, usuarioId) {
   const costoActualPorId = {};
   (productos || []).forEach(function (producto) {
     costoActualPorId[producto.id] = producto.costo;
@@ -34,7 +34,8 @@ function reporteGanancia(transacciones, productos, desde, hasta) {
 
   (transacciones || [])
     .filter(function (transaccion) {
-      return noAnulado(transaccion) && dentroDelRango(transaccion.fecha, desde, hasta);
+      return noAnulado(transaccion) && dentroDelRango(transaccion.fecha, desde, hasta) &&
+        (!usuarioId || transaccion.usuarioId === usuarioId);
     })
     .forEach(function (transaccion) {
       let costo = Number(transaccion.costoUnitario);
@@ -94,11 +95,12 @@ function reportePerdidas(perdidas, desde, hasta) {
   };
 }
 
-function reporteCartera(movimientos, usuarios) {
+function reporteCartera(movimientos, usuarios, usuarioId) {
   const porUsuario = (usuarios || [])
     .filter(function (usuario) {
       // los pseudo-usuarios existen solo para agregar reportes, no tienen saldo propio
-      return usuario.activo === true && usuario.esPseudoUsuario !== true;
+      return usuario.activo === true && usuario.esPseudoUsuario !== true &&
+        (!usuarioId || usuario.id === usuarioId);
     })
     .map(function (usuario) {
       return {
@@ -145,12 +147,60 @@ function reporteGastosCompartidos(gastos) {
   return orden.map(function (motivo) { return grupos[motivo]; });
 }
 
+function reporteInventario(lotes, productos) {
+  const nombrePorId = {};
+  (productos || []).forEach(function (producto) {
+    nombrePorId[producto.id] = producto.nombre;
+  });
+
+  const grupos = {};
+  (lotes || [])
+    .filter(function (lote) {
+      return lote.estado === 'activo' && Number(lote.cantidadRestante) > 0;
+    })
+    .sort(function (a, b) { return String(a.fecha).localeCompare(String(b.fecha)); })
+    .forEach(function (lote) {
+      const clave = lote.productoId;
+      if (!grupos[clave]) {
+        grupos[clave] = {
+          productoId: clave,
+          nombre: nombrePorId[clave] || clave,
+          cantidadTotal: 0,
+          valorTotal: 0,
+          lotes: []
+        };
+      }
+      const grupo = grupos[clave];
+      const cantidad = Number(lote.cantidadRestante);
+      const costoUnitario = Number(lote.costoUnitario);
+      const valor = cantidad * costoUnitario;
+      grupo.cantidadTotal += cantidad;
+      grupo.valorTotal += valor;
+      grupo.lotes.push({
+        fecha: lote.fecha,
+        cantidadRestante: cantidad,
+        costoUnitario: costoUnitario,
+        valor: valor
+      });
+    });
+
+  const porProducto = Object.keys(grupos)
+    .map(function (clave) { return grupos[clave]; })
+    .sort(function (a, b) { return b.valorTotal - a.valorTotal; });
+
+  return {
+    valorTotal: porProducto.reduce(function (suma, fila) { return suma + fila.valorTotal; }, 0),
+    porProducto: porProducto
+  };
+}
+
 if (typeof module !== 'undefined') {
   module.exports = {
     reporteGanancia,
     reportePerdidas,
     reporteCartera,
     reporteGastosCompartidos,
+    reporteInventario,
     dentroDelRango,
     noAnulado
   };

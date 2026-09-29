@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const { reporteGanancia } = require('../../src/dominio/reportes.js');
+const { reporteGanancia, reporteInventario } = require('../../src/dominio/reportes.js');
 
 const PRODUCTOS = [
   { id: 'p1', nombre: 'Cafe', costo: 900, precioVenta: 1500 },
@@ -8,10 +8,10 @@ const PRODUCTOS = [
 ];
 
 const TRANSACCIONES = [
-  { id: 't1', productoId: 'p1', productoNombre: 'Cafe', cantidad: 2, valorUnitario: 1500, valorTotal: 3000, costoUnitario: 800, fecha: '2026-09-10T10:00:00.000Z', estado: 'pendiente' },
-  { id: 't2', productoId: 'p2', productoNombre: 'Galletas', cantidad: 1, valorUnitario: 2000, valorTotal: 2000, costoUnitario: 1200, fecha: '2026-09-11T10:00:00.000Z', estado: 'pagado' },
-  { id: 't3', productoId: 'p1', productoNombre: 'Cafe', cantidad: 5, valorUnitario: 1500, valorTotal: 7500, costoUnitario: 800, fecha: '2026-09-12T10:00:00.000Z', estado: 'anulado' },
-  { id: 't4', productoId: 'p1', productoNombre: 'Cafe', cantidad: 1, valorUnitario: 1500, valorTotal: 1500, costoUnitario: '', fecha: '2026-09-13T10:00:00.000Z', estado: 'pendiente' }
+  { id: 't1', usuarioId: 'u1', productoId: 'p1', productoNombre: 'Cafe', cantidad: 2, valorUnitario: 1500, valorTotal: 3000, costoUnitario: 800, fecha: '2026-09-10T10:00:00.000Z', estado: 'pendiente' },
+  { id: 't2', usuarioId: 'u2', productoId: 'p2', productoNombre: 'Galletas', cantidad: 1, valorUnitario: 2000, valorTotal: 2000, costoUnitario: 1200, fecha: '2026-09-11T10:00:00.000Z', estado: 'pagado' },
+  { id: 't3', usuarioId: 'u1', productoId: 'p1', productoNombre: 'Cafe', cantidad: 5, valorUnitario: 1500, valorTotal: 7500, costoUnitario: 800, fecha: '2026-09-12T10:00:00.000Z', estado: 'anulado' },
+  { id: 't4', usuarioId: 'u2', productoId: 'p1', productoNombre: 'Cafe', cantidad: 1, valorUnitario: 1500, valorTotal: 1500, costoUnitario: '', fecha: '2026-09-13T10:00:00.000Z', estado: 'pendiente' }
 ];
 
 test('reporteGanancia usa el costo guardado en la transaccion', () => {
@@ -48,6 +48,17 @@ test('reporteGanancia ordena de mayor a menor ganancia', () => {
 test('reporteGanancia respeta el rango de fechas', () => {
   const reporte = reporteGanancia(TRANSACCIONES, PRODUCTOS, '2026-09-11', '2026-09-11');
   assert.strictEqual(reporte.total, 800);
+});
+
+test('reporteGanancia filtra por usuarioId cuando se pasa', () => {
+  const reporte = reporteGanancia(TRANSACCIONES, PRODUCTOS, '2026-09-01', '2026-09-30', 'u1');
+  assert.strictEqual(reporte.total, 1400);
+  assert.deepStrictEqual(reporte.porProducto.map(p => p.productoId), ['p1']);
+});
+
+test('reporteGanancia sin usuarioId incluye a todos los usuarios', () => {
+  const reporte = reporteGanancia(TRANSACCIONES, PRODUCTOS, '2026-09-01', '2026-09-30');
+  assert.strictEqual(reporte.total, 2800);
 });
 
 const { reportePerdidas, reporteCartera, reporteGastosCompartidos } = require('../../src/dominio/reportes.js');
@@ -89,6 +100,19 @@ test('reporteCartera suma el saldo de cada usuario activo', () => {
   assert.strictEqual(reporte.porUsuario[0].saldo, 3000);
 });
 
+test('reporteCartera filtra por usuarioId cuando se pasa', () => {
+  const movimientos = {
+    transacciones: [
+      { id: 't1', usuarioId: 'u1', productoNombre: 'Cafe', cantidad: 1, valorTotal: 3000, fecha: '2026-09-10T10:00:00.000Z', estado: 'pendiente' },
+      { id: 't2', usuarioId: 'u2', productoNombre: 'Cafe', cantidad: 1, valorTotal: 1500, fecha: '2026-09-10T10:00:00.000Z', estado: 'pendiente' }
+    ],
+    prestamos: [], gastos: [], pagos: []
+  };
+  const reporte = reporteCartera(movimientos, USUARIOS, 'u2');
+  assert.deepStrictEqual(reporte.porUsuario.map(u => u.nombre), ['Beto']);
+  assert.strictEqual(reporte.total, 1500);
+});
+
 test('reporteCartera omite a quien no debe nada', () => {
   const movimientos = { transacciones: [], prestamos: [], gastos: [], pagos: [] };
   assert.deepStrictEqual(reporteCartera(movimientos, USUARIOS).porUsuario, []);
@@ -125,4 +149,50 @@ test('reporteGastosCompartidos detalla el valor por persona', () => {
   const cumple = grupos[0].gastos.find(g => g.id === 'g1');
   assert.strictEqual(cumple.participantes, 3);
   assert.strictEqual(cumple.valorPorPersona, 10000);
+});
+
+test('reporteInventario agrupa los lotes activos por producto, del mas viejo al mas nuevo', () => {
+  const productos = [
+    { id: 'p1', nombre: 'Quatro', activo: true },
+    { id: 'p2', nombre: 'Cafe', activo: true }
+  ];
+  const lotes = [
+    { id: 'l2', productoId: 'p1', fecha: '2026-09-20T10:00:00.000Z', cantidadInicial: 6, cantidadRestante: 6, costoUnitario: 3000, estado: 'activo' },
+    { id: 'l1', productoId: 'p1', fecha: '2026-09-01T10:00:00.000Z', cantidadInicial: 3, cantidadRestante: 1, costoUnitario: 2925, estado: 'activo' },
+    { id: 'l3', productoId: 'p2', fecha: '2026-09-05T10:00:00.000Z', cantidadInicial: 10, cantidadRestante: 4, costoUnitario: 800, estado: 'activo' }
+  ];
+  const reporte = reporteInventario(lotes, productos);
+
+  assert.strictEqual(reporte.valorTotal, 24125);
+
+  const quatro = reporte.porProducto[0];
+  assert.strictEqual(quatro.nombre, 'Quatro');
+  assert.strictEqual(quatro.cantidadTotal, 7);
+  assert.strictEqual(quatro.valorTotal, 20925);
+  assert.strictEqual(quatro.lotes[0].costoUnitario, 2925);
+  assert.strictEqual(quatro.lotes[0].valor, 2925);
+  assert.strictEqual(quatro.lotes[1].costoUnitario, 3000);
+
+  const cafe = reporte.porProducto[1];
+  assert.strictEqual(cafe.nombre, 'Cafe');
+  assert.strictEqual(cafe.cantidadTotal, 4);
+  assert.strictEqual(cafe.valorTotal, 3200);
+});
+
+test('reporteInventario ignora lotes anulados o agotados', () => {
+  const productos = [{ id: 'p1', nombre: 'Quatro', activo: true }];
+  const lotes = [
+    { id: 'l1', productoId: 'p1', fecha: '2026-09-01T10:00:00.000Z', cantidadInicial: 3, cantidadRestante: 0, costoUnitario: 2925, estado: 'activo' },
+    { id: 'l2', productoId: 'p1', fecha: '2026-09-02T10:00:00.000Z', cantidadInicial: 3, cantidadRestante: 3, costoUnitario: 2925, estado: 'anulado' }
+  ];
+  const reporte = reporteInventario(lotes, productos);
+  assert.strictEqual(reporte.valorTotal, 0);
+  assert.deepStrictEqual(reporte.porProducto, []);
+});
+
+test('reporteInventario no lista productos sin lotes', () => {
+  const productos = [{ id: 'p1', nombre: 'Quatro', activo: true }];
+  const reporte = reporteInventario([], productos);
+  assert.strictEqual(reporte.valorTotal, 0);
+  assert.deepStrictEqual(reporte.porProducto, []);
 });
