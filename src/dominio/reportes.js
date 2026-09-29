@@ -23,7 +23,7 @@ function noAnulado(registro) {
   return registro.estado !== 'anulado';
 }
 
-function reporteGanancia(transacciones, productos, desde, hasta) {
+function reporteGanancia(transacciones, productos, desde, hasta, usuarioId) {
   const costoActualPorId = {};
   (productos || []).forEach(function (producto) {
     costoActualPorId[producto.id] = producto.costo;
@@ -34,7 +34,8 @@ function reporteGanancia(transacciones, productos, desde, hasta) {
 
   (transacciones || [])
     .filter(function (transaccion) {
-      return noAnulado(transaccion) && dentroDelRango(transaccion.fecha, desde, hasta);
+      return noAnulado(transaccion) && dentroDelRango(transaccion.fecha, desde, hasta) &&
+        (!usuarioId || transaccion.usuarioId === usuarioId);
     })
     .forEach(function (transaccion) {
       let costo = Number(transaccion.costoUnitario);
@@ -94,11 +95,12 @@ function reportePerdidas(perdidas, desde, hasta) {
   };
 }
 
-function reporteCartera(movimientos, usuarios) {
+function reporteCartera(movimientos, usuarios, usuarioId) {
   const porUsuario = (usuarios || [])
     .filter(function (usuario) {
       // los pseudo-usuarios existen solo para agregar reportes, no tienen saldo propio
-      return usuario.activo === true && usuario.esPseudoUsuario !== true;
+      return usuario.activo === true && usuario.esPseudoUsuario !== true &&
+        (!usuarioId || usuario.id === usuarioId);
     })
     .map(function (usuario) {
       return {

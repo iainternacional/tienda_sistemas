@@ -249,6 +249,12 @@
                 <label for="hastaReporte">Hasta</label>
                 <input id="hastaReporte" type="date">
               </div>
+              <div class="campo">
+                <label for="compradorReporte">Comprador</label>
+                <select id="compradorReporte">
+                  <option value="">Todos los compradores</option>
+                </select>
+              </div>
               <button id="btnReportes" class="campo-ancho">Ver reportes</button>
               <div id="avisoReportes" class="campo-ancho"></div>
               <div id="resumenReportes" class="campo-ancho"></div>
@@ -374,9 +380,21 @@
             select.appendChild(opcion);
           });
         });
+
+        var selectFiltro = document.getElementById('compradorReporte');
+        var valorPrevio = selectFiltro.value;
+        selectFiltro.innerHTML = '<option value="">Todos los compradores</option>';
+        usuarios.forEach(function (usuario) {
+          var opcion = document.createElement('option');
+          opcion.value = usuario.id;
+          opcion.textContent = usuario.nombre;
+          selectFiltro.appendChild(opcion);
+        });
+        selectFiltro.value = valorPrevio;
       }
 
       function cargarMovimientos() {
+        var usuarioId = document.getElementById('compradorReporte').value;
         google.script.run.withSuccessHandler(function (respuesta) {
           var cuerpo = document.getElementById('movimientos');
           cuerpo.innerHTML = '';
@@ -414,8 +432,10 @@
             fila.appendChild(celdaAccion);
             cuerpo.appendChild(fila);
           });
-        }).apiListarMovimientosRecientes(token);
+        }).apiListarMovimientosRecientes(token, usuarioId);
       }
+
+      document.getElementById('compradorReporte').addEventListener('change', cargarMovimientos);
 
       function cargarTodo() {
         google.script.run.withSuccessHandler(function (estado) {
@@ -713,7 +733,8 @@
         }).apiReportes(
           token,
           document.getElementById('desdeReporte').value,
-          document.getElementById('hastaReporte').value
+          document.getElementById('hastaReporte').value,
+          document.getElementById('compradorReporte').value
         );
       });
 

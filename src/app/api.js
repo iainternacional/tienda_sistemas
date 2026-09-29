@@ -723,7 +723,7 @@ function apiRegistrarPago(token, usuarioId, valor) {
   }
 }
 
-function apiReportes(token, desde, hasta) {
+function apiReportes(token, desde, hasta, usuarioId) {
   try {
     exigirAdmin(token);
     const libro = obtenerLibro();
@@ -735,9 +735,9 @@ function apiReportes(token, desde, hasta) {
     return {
       ok: true,
       mensaje: '',
-      ganancia: reporteGanancia(movimientos.transacciones, productos, desde, hasta),
+      ganancia: reporteGanancia(movimientos.transacciones, productos, desde, hasta, usuarioId),
       perdidas: reportePerdidas(perdidas, desde, hasta),
-      cartera: reporteCartera(movimientos, usuarios),
+      cartera: reporteCartera(movimientos, usuarios, usuarioId),
       gastos: reporteGastosCompartidos(movimientos.gastos),
       inventario: reporteInventario(lotes, productos)
     };
@@ -786,7 +786,7 @@ function apiAnularPago(token, pagoId, motivo) {
   }
 }
 
-function apiListarMovimientosRecientes(token) {
+function apiListarMovimientosRecientes(token, usuarioId) {
   try {
     exigirAdmin(token);
     const libro = obtenerLibro();
@@ -799,6 +799,7 @@ function apiListarMovimientosRecientes(token) {
     leerTodo(libro, 'Transacciones').forEach(function (registro) {
       movimientos.push({
         id: registro.id, tipo: 'transaccion', fecha: registro.fecha,
+        usuarioId: registro.usuarioId,
         quien: nombrePorId[registro.usuarioId] || registro.usuarioId,
         concepto: registro.productoNombre + ' x' + registro.cantidad,
         valor: registro.valorTotal, estado: registro.estado
@@ -808,6 +809,7 @@ function apiListarMovimientosRecientes(token) {
     leerTodo(libro, 'Prestamos').forEach(function (registro) {
       movimientos.push({
         id: registro.id, tipo: 'prestamo', fecha: registro.fecha,
+        usuarioId: registro.usuarioId,
         quien: nombrePorId[registro.usuarioId] || registro.usuarioId,
         concepto: 'Prestamo en efectivo',
         valor: registro.valor, estado: registro.estado
@@ -817,6 +819,7 @@ function apiListarMovimientosRecientes(token) {
     leerTodo(libro, 'Pagos').forEach(function (registro) {
       movimientos.push({
         id: registro.id, tipo: 'pago', fecha: registro.fecha,
+        usuarioId: registro.usuarioId,
         quien: nombrePorId[registro.usuarioId] || registro.usuarioId,
         concepto: 'Abono',
         valor: -registro.valor, estado: registro.estado
@@ -826,6 +829,7 @@ function apiListarMovimientosRecientes(token) {
     leerTodo(libro, 'Perdidas').forEach(function (registro) {
       movimientos.push({
         id: registro.id, tipo: 'perdida', fecha: registro.fecha,
+        usuarioId: null,
         quien: '-',
         concepto: 'Perdida de ' + registro.productoNombre + ' x' + registro.cantidad + ' (' + registro.motivo + ')',
         valor: registro.valor, estado: registro.estado
@@ -835,6 +839,7 @@ function apiListarMovimientosRecientes(token) {
     leerTodo(libro, 'GastosCompartidos').forEach(function (registro) {
       movimientos.push({
         id: registro.id, tipo: 'gasto', fecha: registro.fecha,
+        usuarioId: null,
         quien: '-',
         concepto: 'Gasto ' + registro.motivo + (registro.descripcion ? ': ' + registro.descripcion : ''),
         valor: registro.valorTotal, estado: registro.estado
@@ -845,6 +850,7 @@ function apiListarMovimientosRecientes(token) {
       const lineas = JSON.parse(registro.lineas || '[]');
       movimientos.push({
         id: registro.id, tipo: 'ingreso', fecha: registro.fecha,
+        usuarioId: null,
         quien: registro.admin || '-',
         concepto: 'Ingreso de factura: ' + lineas.length + ' producto(s)',
         valor: lineas.reduce(function (suma, l) { return suma + l.cantidad * l.costoUnitario; }, 0),
@@ -852,8 +858,11 @@ function apiListarMovimientosRecientes(token) {
       });
     });
 
-    movimientos.sort(function (a, b) { return String(b.fecha).localeCompare(String(a.fecha)); });
-    return { ok: true, mensaje: '', movimientos: movimientos.slice(0, 50) };
+    const filtrados = usuarioId
+      ? movimientos.filter(function (m) { return m.usuarioId === usuarioId; })
+      : movimientos;
+    filtrados.sort(function (a, b) { return String(b.fecha).localeCompare(String(a.fecha)); });
+    return { ok: true, mensaje: '', movimientos: filtrados.slice(0, 50) };
   } catch (error) {
     return { ok: false, mensaje: error.message, movimientos: [] };
   }

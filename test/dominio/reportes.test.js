@@ -8,10 +8,10 @@ const PRODUCTOS = [
 ];
 
 const TRANSACCIONES = [
-  { id: 't1', productoId: 'p1', productoNombre: 'Cafe', cantidad: 2, valorUnitario: 1500, valorTotal: 3000, costoUnitario: 800, fecha: '2026-09-10T10:00:00.000Z', estado: 'pendiente' },
-  { id: 't2', productoId: 'p2', productoNombre: 'Galletas', cantidad: 1, valorUnitario: 2000, valorTotal: 2000, costoUnitario: 1200, fecha: '2026-09-11T10:00:00.000Z', estado: 'pagado' },
-  { id: 't3', productoId: 'p1', productoNombre: 'Cafe', cantidad: 5, valorUnitario: 1500, valorTotal: 7500, costoUnitario: 800, fecha: '2026-09-12T10:00:00.000Z', estado: 'anulado' },
-  { id: 't4', productoId: 'p1', productoNombre: 'Cafe', cantidad: 1, valorUnitario: 1500, valorTotal: 1500, costoUnitario: '', fecha: '2026-09-13T10:00:00.000Z', estado: 'pendiente' }
+  { id: 't1', usuarioId: 'u1', productoId: 'p1', productoNombre: 'Cafe', cantidad: 2, valorUnitario: 1500, valorTotal: 3000, costoUnitario: 800, fecha: '2026-09-10T10:00:00.000Z', estado: 'pendiente' },
+  { id: 't2', usuarioId: 'u2', productoId: 'p2', productoNombre: 'Galletas', cantidad: 1, valorUnitario: 2000, valorTotal: 2000, costoUnitario: 1200, fecha: '2026-09-11T10:00:00.000Z', estado: 'pagado' },
+  { id: 't3', usuarioId: 'u1', productoId: 'p1', productoNombre: 'Cafe', cantidad: 5, valorUnitario: 1500, valorTotal: 7500, costoUnitario: 800, fecha: '2026-09-12T10:00:00.000Z', estado: 'anulado' },
+  { id: 't4', usuarioId: 'u2', productoId: 'p1', productoNombre: 'Cafe', cantidad: 1, valorUnitario: 1500, valorTotal: 1500, costoUnitario: '', fecha: '2026-09-13T10:00:00.000Z', estado: 'pendiente' }
 ];
 
 test('reporteGanancia usa el costo guardado en la transaccion', () => {
@@ -48,6 +48,17 @@ test('reporteGanancia ordena de mayor a menor ganancia', () => {
 test('reporteGanancia respeta el rango de fechas', () => {
   const reporte = reporteGanancia(TRANSACCIONES, PRODUCTOS, '2026-09-11', '2026-09-11');
   assert.strictEqual(reporte.total, 800);
+});
+
+test('reporteGanancia filtra por usuarioId cuando se pasa', () => {
+  const reporte = reporteGanancia(TRANSACCIONES, PRODUCTOS, '2026-09-01', '2026-09-30', 'u1');
+  assert.strictEqual(reporte.total, 1400);
+  assert.deepStrictEqual(reporte.porProducto.map(p => p.productoId), ['p1']);
+});
+
+test('reporteGanancia sin usuarioId incluye a todos los usuarios', () => {
+  const reporte = reporteGanancia(TRANSACCIONES, PRODUCTOS, '2026-09-01', '2026-09-30');
+  assert.strictEqual(reporte.total, 2800);
 });
 
 const { reportePerdidas, reporteCartera, reporteGastosCompartidos } = require('../../src/dominio/reportes.js');
@@ -87,6 +98,19 @@ test('reporteCartera suma el saldo de cada usuario activo', () => {
   assert.strictEqual(reporte.total, 4500);
   assert.deepStrictEqual(reporte.porUsuario.map(u => u.nombre), ['Ana', 'Beto']);
   assert.strictEqual(reporte.porUsuario[0].saldo, 3000);
+});
+
+test('reporteCartera filtra por usuarioId cuando se pasa', () => {
+  const movimientos = {
+    transacciones: [
+      { id: 't1', usuarioId: 'u1', productoNombre: 'Cafe', cantidad: 1, valorTotal: 3000, fecha: '2026-09-10T10:00:00.000Z', estado: 'pendiente' },
+      { id: 't2', usuarioId: 'u2', productoNombre: 'Cafe', cantidad: 1, valorTotal: 1500, fecha: '2026-09-10T10:00:00.000Z', estado: 'pendiente' }
+    ],
+    prestamos: [], gastos: [], pagos: []
+  };
+  const reporte = reporteCartera(movimientos, USUARIOS, 'u2');
+  assert.deepStrictEqual(reporte.porUsuario.map(u => u.nombre), ['Beto']);
+  assert.strictEqual(reporte.total, 1500);
 });
 
 test('reporteCartera omite a quien no debe nada', () => {
