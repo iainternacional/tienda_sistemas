@@ -9,7 +9,8 @@ var ESQUEMA = {
   Transacciones: [
     'id', 'usuarioId', 'productoId', 'productoNombre', 'cantidad',
     'valorUnitario', 'valorTotal', 'fecha', 'origen', 'estado',
-    'anuladoPor', 'anuladoFecha', 'anuladoMotivo', 'costoUnitario'
+    'anuladoPor', 'anuladoFecha', 'anuladoMotivo', 'costoUnitario',
+    'lotesConsumidos'
   ],
   Prestamos: [
     'id', 'usuarioId', 'valor', 'fecha', 'estado',
@@ -21,7 +22,7 @@ var ESQUEMA = {
   ],
   Perdidas: [
     'id', 'productoId', 'productoNombre', 'cantidad', 'motivo', 'valor', 'fecha', 'estado',
-    'anuladoPor', 'anuladoFecha', 'anuladoMotivo'
+    'anuladoPor', 'anuladoFecha', 'anuladoMotivo', 'lotesConsumidos'
   ],
   GastosCompartidos: [
     'id', 'motivo', 'descripcion', 'valorTotal', 'participantes', 'fecha', 'estado',
@@ -30,6 +31,10 @@ var ESQUEMA = {
   IngresosInventario: [
     'id', 'fecha', 'admin', 'lineas', 'estado',
     'anuladoPor', 'anuladoFecha', 'anuladoMotivo'
+  ],
+  Lotes: [
+    'id', 'productoId', 'fecha', 'cantidadInicial', 'cantidadRestante',
+    'costoUnitario', 'estado', 'anuladoPor', 'anuladoFecha', 'anuladoMotivo'
   ]
 };
 

@@ -124,16 +124,21 @@ function registrarFiado(usuario, productoId, cantidad, origen) {
     if (!producto || producto.activo !== true) {
       throw new Error('El producto no existe o esta inactivo');
     }
+    const consumo = consumirDeLotes(leerTodo(libro, 'Lotes'), producto.id, cantidad, producto.nombre);
     const transaccion = crearTransaccionFiado({
       id: nuevoId(),
       usuarioId: usuario.id,
       producto: producto,
       cantidad: cantidad,
       fecha: ahoraIso(),
-      origen: origen
+      origen: origen,
+      consumo: consumo
     });
     const actualizado = descontarStock(producto, cantidad);
     agregarFila(libro, 'Transacciones', transaccion);
+    consumo.lotesActualizados.forEach(function (lote) {
+      actualizarPorId(libro, 'Lotes', lote.id, { cantidadRestante: lote.cantidadRestante });
+    });
     actualizarPorId(libro, 'Productos', producto.id, { stockActual: actualizado.stockActual });
     return transaccion;
   } finally {
@@ -174,8 +179,9 @@ function apiCrearProducto(token, datos) {
     if (buscarProductoPorNombre(leerTodo(libro, 'Productos'), normalizados.nombre)) {
       return { ok: false, mensaje: 'Ya existe un producto con ese nombre', productos: [] };
     }
+    const productoId = nuevoId();
     agregarFila(libro, 'Productos', {
-      id: nuevoId(),
+      id: productoId,
       nombre: normalizados.nombre,
       alias: normalizados.alias,
       categoria: normalizados.categoria,
@@ -185,6 +191,15 @@ function apiCrearProducto(token, datos) {
       activo: true,
       porcentajeAumento: normalizados.porcentajeAumento
     });
+    if (normalizados.stockActual > 0) {
+      agregarFila(libro, 'Lotes', crearLote({
+        id: nuevoId(),
+        productoId: productoId,
+        fecha: ahoraIso(),
+        cantidad: normalizados.stockActual,
+        costoUnitario: normalizados.costo
+      }));
+    }
     return { ok: true, mensaje: 'Producto creado', productos: productosVisibles() };
   } catch (error) {
     return { ok: false, mensaje: error.message, productos: [] };
@@ -195,7 +210,7 @@ function apiActualizarProducto(token, productoId, cambios) {
   try {
     exigirAdmin(token);
     const permitidos = {};
-    ['nombre', 'categoria', 'costo', 'precioVenta', 'stockActual', 'activo'].forEach(function (campo) {
+    ['nombre', 'categoria', 'costo', 'precioVenta', 'activo'].forEach(function (campo) {
       if (cambios[campo] !== undefined && cambios[campo] !== null && cambios[campo] !== '') {
         permitidos[campo] = campo === 'nombre' || campo === 'categoria'
           ? String(cambios[campo]).trim()
@@ -377,15 +392,20 @@ function apiRegistrarPerdida(token, productoId, cantidad, motivo) {
     if (!producto || producto.activo !== true) {
       return { ok: false, mensaje: 'El producto no existe o esta inactivo', productos: [] };
     }
+    const consumo = consumirDeLotes(leerTodo(libro, 'Lotes'), producto.id, Number(cantidad), producto.nombre);
     const perdida = crearPerdida({
       id: nuevoId(),
       producto: producto,
       cantidad: Number(cantidad),
       motivo: motivo,
-      fecha: ahoraIso()
+      fecha: ahoraIso(),
+      consumo: consumo
     });
     const actualizado = descontarStock(producto, Number(cantidad));
     agregarFila(libro, 'Perdidas', perdida);
+    consumo.lotesActualizados.forEach(function (lote) {
+      actualizarPorId(libro, 'Lotes', lote.id, { cantidadRestante: lote.cantidadRestante });
+    });
     actualizarPorId(libro, 'Productos', producto.id, { stockActual: actualizado.stockActual });
     return { ok: true, mensaje: 'Perdida registrada: ' + perdida.cantidad + ' x ' + perdida.productoNombre, productos: productosVisibles() };
   } catch (error) {
@@ -422,6 +442,10 @@ function apiAnularPerdida(token, perdidaId, motivo) {
       anuladoPor: anulado.anuladoPor,
       anuladoFecha: anulado.anuladoFecha,
       anuladoMotivo: anulado.anuladoMotivo
+    });
+    const consumosPerdida = original.lotesConsumidos ? JSON.parse(original.lotesConsumidos) : [];
+    devolverALotes(leerTodo(libro, 'Lotes'), consumosPerdida).forEach(function (lote) {
+      actualizarPorId(libro, 'Lotes', lote.id, { cantidadRestante: lote.cantidadRestante });
     });
     const productos = leerTodo(libro, 'Productos');
     for (let j = 0; j < productos.length; j++) {
@@ -517,6 +541,15 @@ function apiConfirmarIngresoInventario(token, lineas) {
           costo: Number(linea.costoUnitario)
         });
       }
+      const loteId = nuevoId();
+      agregarFila(libro, 'Lotes', crearLote({
+        id: loteId,
+        productoId: linea.productoId,
+        fecha: ahoraIso(),
+        cantidad: Number(linea.cantidad),
+        costoUnitario: Number(linea.costoUnitario)
+      }));
+      linea.loteId = loteId;
     });
     const ingreso = crearIngresoInventario({ id: nuevoId(), admin: admin.nombre, lineas: lineas, fecha: ahoraIso() });
     agregarFila(libro, 'IngresosInventario', ingreso);
@@ -525,6 +558,26 @@ function apiConfirmarIngresoInventario(token, lineas) {
     return { ok: false, mensaje: error.message, productos: [] };
   } finally {
     bloqueo.releaseLock();
+  }
+}
+
+function apiAjustarStockSubir(token, productoId, cantidad, costoUnitario) {
+  try {
+    exigirAdmin(token);
+    const producto = leerTodo(obtenerLibro(), 'Productos')
+      .filter(function (p) { return p.id === productoId && p.activo === true; })[0];
+    if (!producto) {
+      return { ok: false, mensaje: 'El producto no existe o esta inactivo', productos: [] };
+    }
+    return apiConfirmarIngresoInventario(token, [{
+      nombre: producto.nombre,
+      productoId: producto.id,
+      cantidad: Number(cantidad),
+      costoUnitario: Number(costoUnitario),
+      esNuevo: false
+    }]);
+  } catch (error) {
+    return { ok: false, mensaje: error.message, productos: [] };
   }
 }
 
@@ -542,6 +595,19 @@ function apiAnularIngresoInventario(token, ingresoId, motivo) {
     if (!original) {
       return { ok: false, mensaje: 'No se encontro el ingreso', productos: [] };
     }
+    const lineas = JSON.parse(original.lineas);
+    const lotes = leerTodo(libro, 'Lotes');
+    const lotesDelIngreso = [];
+    for (let k = 0; k < lineas.length; k++) {
+      const lote = lotes.filter(function (l) { return l.id === lineas[k].loteId; })[0];
+      if (!lote) {
+        continue;
+      }
+      if (!puedeAnularseLote(lote)) {
+        return { ok: false, mensaje: 'No se puede anular: ya se consumieron unidades de este lote', productos: [] };
+      }
+      lotesDelIngreso.push(lote);
+    }
     const anulado = anularRegistro(original, {
       anuladoPor: admin.nombre, anuladoFecha: ahoraIso(), anuladoMotivo: motivo
     });
@@ -549,7 +615,15 @@ function apiAnularIngresoInventario(token, ingresoId, motivo) {
       estado: anulado.estado, anuladoPor: anulado.anuladoPor,
       anuladoFecha: anulado.anuladoFecha, anuladoMotivo: anulado.anuladoMotivo
     });
-    const lineas = JSON.parse(original.lineas);
+    lotesDelIngreso.forEach(function (lote) {
+      const loteAnulado = anularRegistro(lote, {
+        anuladoPor: admin.nombre, anuladoFecha: ahoraIso(), anuladoMotivo: motivo
+      });
+      actualizarPorId(libro, 'Lotes', lote.id, {
+        estado: loteAnulado.estado, anuladoPor: loteAnulado.anuladoPor,
+        anuladoFecha: loteAnulado.anuladoFecha, anuladoMotivo: loteAnulado.anuladoMotivo
+      });
+    });
     const productos = leerTodo(libro, 'Productos');
     lineas.forEach(function (linea) {
       const producto = productos.filter(function (p) { return p.id === linea.productoId; })[0];
@@ -649,7 +723,7 @@ function apiRegistrarPago(token, usuarioId, valor) {
   }
 }
 
-function apiReportes(token, desde, hasta) {
+function apiReportes(token, desde, hasta, usuarioId) {
   try {
     exigirAdmin(token);
     const libro = obtenerLibro();
@@ -657,13 +731,15 @@ function apiReportes(token, desde, hasta) {
     const productos = leerTodo(libro, 'Productos');
     const usuarios = leerTodo(libro, 'Usuarios');
     const perdidas = leerTodo(libro, 'Perdidas');
+    const lotes = leerTodo(libro, 'Lotes');
     return {
       ok: true,
       mensaje: '',
-      ganancia: reporteGanancia(movimientos.transacciones, productos, desde, hasta),
+      ganancia: reporteGanancia(movimientos.transacciones, productos, desde, hasta, usuarioId),
       perdidas: reportePerdidas(perdidas, desde, hasta),
-      cartera: reporteCartera(movimientos, usuarios),
-      gastos: reporteGastosCompartidos(movimientos.gastos)
+      cartera: reporteCartera(movimientos, usuarios, usuarioId),
+      gastos: reporteGastosCompartidos(movimientos.gastos),
+      inventario: reporteInventario(lotes, productos)
     };
   } catch (error) {
     return {
@@ -672,7 +748,8 @@ function apiReportes(token, desde, hasta) {
       ganancia: { total: 0, estimado: false, porProducto: [] },
       perdidas: { total: 0, lineas: [] },
       cartera: { total: 0, porUsuario: [] },
-      gastos: []
+      gastos: [],
+      inventario: { valorTotal: 0, porProducto: [] }
     };
   }
 }
@@ -709,7 +786,7 @@ function apiAnularPago(token, pagoId, motivo) {
   }
 }
 
-function apiListarMovimientosRecientes(token) {
+function apiListarMovimientosRecientes(token, usuarioId) {
   try {
     exigirAdmin(token);
     const libro = obtenerLibro();
@@ -722,6 +799,7 @@ function apiListarMovimientosRecientes(token) {
     leerTodo(libro, 'Transacciones').forEach(function (registro) {
       movimientos.push({
         id: registro.id, tipo: 'transaccion', fecha: registro.fecha,
+        usuarioId: registro.usuarioId,
         quien: nombrePorId[registro.usuarioId] || registro.usuarioId,
         concepto: registro.productoNombre + ' x' + registro.cantidad,
         valor: registro.valorTotal, estado: registro.estado
@@ -731,6 +809,7 @@ function apiListarMovimientosRecientes(token) {
     leerTodo(libro, 'Prestamos').forEach(function (registro) {
       movimientos.push({
         id: registro.id, tipo: 'prestamo', fecha: registro.fecha,
+        usuarioId: registro.usuarioId,
         quien: nombrePorId[registro.usuarioId] || registro.usuarioId,
         concepto: 'Prestamo en efectivo',
         valor: registro.valor, estado: registro.estado
@@ -740,6 +819,7 @@ function apiListarMovimientosRecientes(token) {
     leerTodo(libro, 'Pagos').forEach(function (registro) {
       movimientos.push({
         id: registro.id, tipo: 'pago', fecha: registro.fecha,
+        usuarioId: registro.usuarioId,
         quien: nombrePorId[registro.usuarioId] || registro.usuarioId,
         concepto: 'Abono',
         valor: -registro.valor, estado: registro.estado
@@ -749,6 +829,7 @@ function apiListarMovimientosRecientes(token) {
     leerTodo(libro, 'Perdidas').forEach(function (registro) {
       movimientos.push({
         id: registro.id, tipo: 'perdida', fecha: registro.fecha,
+        usuarioId: null,
         quien: '-',
         concepto: 'Perdida de ' + registro.productoNombre + ' x' + registro.cantidad + ' (' + registro.motivo + ')',
         valor: registro.valor, estado: registro.estado
@@ -758,6 +839,7 @@ function apiListarMovimientosRecientes(token) {
     leerTodo(libro, 'GastosCompartidos').forEach(function (registro) {
       movimientos.push({
         id: registro.id, tipo: 'gasto', fecha: registro.fecha,
+        usuarioId: null,
         quien: '-',
         concepto: 'Gasto ' + registro.motivo + (registro.descripcion ? ': ' + registro.descripcion : ''),
         valor: registro.valorTotal, estado: registro.estado
@@ -768,6 +850,7 @@ function apiListarMovimientosRecientes(token) {
       const lineas = JSON.parse(registro.lineas || '[]');
       movimientos.push({
         id: registro.id, tipo: 'ingreso', fecha: registro.fecha,
+        usuarioId: null,
         quien: registro.admin || '-',
         concepto: 'Ingreso de factura: ' + lineas.length + ' producto(s)',
         valor: lineas.reduce(function (suma, l) { return suma + l.cantidad * l.costoUnitario; }, 0),
@@ -775,8 +858,11 @@ function apiListarMovimientosRecientes(token) {
       });
     });
 
-    movimientos.sort(function (a, b) { return String(b.fecha).localeCompare(String(a.fecha)); });
-    return { ok: true, mensaje: '', movimientos: movimientos.slice(0, 50) };
+    const filtrados = usuarioId
+      ? movimientos.filter(function (m) { return m.usuarioId === usuarioId; })
+      : movimientos;
+    filtrados.sort(function (a, b) { return String(b.fecha).localeCompare(String(a.fecha)); });
+    return { ok: true, mensaje: '', movimientos: filtrados.slice(0, 50) };
   } catch (error) {
     return { ok: false, mensaje: error.message, movimientos: [] };
   }
@@ -819,6 +905,10 @@ function apiAnularTransaccion(token, transaccionId, motivo) {
       anuladoPor: anulada.anuladoPor,
       anuladoFecha: anulada.anuladoFecha,
       anuladoMotivo: anulada.anuladoMotivo
+    });
+    const consumosTransaccion = original.lotesConsumidos ? JSON.parse(original.lotesConsumidos) : [];
+    devolverALotes(leerTodo(libro, 'Lotes'), consumosTransaccion).forEach(function (lote) {
+      actualizarPorId(libro, 'Lotes', lote.id, { cantidadRestante: lote.cantidadRestante });
     });
     const productos = leerTodo(libro, 'Productos');
     for (let j = 0; j < productos.length; j++) {
