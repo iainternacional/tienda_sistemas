@@ -13,6 +13,7 @@ function crearPrestamo(datos) {
   if (!esEnteroPositivo(datos.valor)) {
     throw new Error('El valor del prestamo debe ser un entero positivo');
   }
+  const concepto = String(datos.concepto || '').trim();
   return {
     id: datos.id,
     usuarioId: datos.usuarioId,
@@ -21,7 +22,8 @@ function crearPrestamo(datos) {
     estado: 'pendiente',
     anuladoPor: '',
     anuladoFecha: '',
-    anuladoMotivo: ''
+    anuladoMotivo: '',
+    concepto: concepto || 'Prestamo en efectivo'
   };
 }
 

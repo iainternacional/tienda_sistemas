@@ -73,3 +73,14 @@ test('desglosarSaldoUsuario describe la cuota del gasto', () => {
   assert.strictEqual(cuota.valorTotal, 10000);
   assert.strictEqual(cuota.concepto, 'Cumpleanos: Torta de Ana');
 });
+
+test('desglosarSaldoUsuario usa el concepto por defecto cuando el prestamo no trae uno', () => {
+  const prestamo = desglosarSaldoUsuario(MOVIMIENTOS, 'u1').find(d => d.tipo === 'prestamo');
+  assert.strictEqual(prestamo.concepto, 'Prestamo en efectivo');
+});
+
+test('desglosarSaldoUsuario respeta el concepto personalizado del prestamo', () => {
+  const movimientos = { prestamos: [{ id: 'pr9', usuarioId: 'u1', valor: 15000, fecha: '2026-09-14T10:00:00.000Z', estado: 'pendiente', concepto: 'Saldo anterior' }] };
+  const linea = desglosarSaldoUsuario(movimientos, 'u1')[0];
+  assert.strictEqual(linea.concepto, 'Saldo anterior');
+});

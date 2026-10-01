@@ -4,7 +4,8 @@ const crypto = require('node:crypto');
 const {
   hashClave, verificarClave, resolverUsuarioPorEmail, resolverUsuarioPorClave, esAdmin,
   validarUsuarioNuevo, crearUsuarioComprador, buscarUsuarioPorNombreDeUsuario,
-  validarUsuarioCorporativoNuevo, crearUsuarioCorporativo, buscarUsuarioPorEmailCorporativo
+  validarUsuarioCorporativoNuevo, crearUsuarioCorporativo, buscarUsuarioPorEmailCorporativo,
+  prepararActualizacionUsuario
 } = require('../../src/dominio/auth.js');
 
 function hashDePrueba(texto) {
@@ -270,4 +271,34 @@ test('buscarUsuarioPorEmailCorporativo tambien encuentra inactivos para no recic
 test('buscarUsuarioPorEmailCorporativo devuelve null si no existe o viene vacio', () => {
   assert.strictEqual(buscarUsuarioPorEmailCorporativo(USUARIOS, 'nadie@ipuc.org.co'), null);
   assert.strictEqual(buscarUsuarioPorEmailCorporativo(USUARIOS, ''), null);
+});
+
+test('prepararActualizacionUsuario arma nombre, area y usuario para login de usuario y clave', () => {
+  const cambios = prepararActualizacionUsuario(USUARIOS[1], { nombre: '  Maria Lopez  ', area: '  Compras  ', usuario: '  MARIA.LOPEZ ' });
+  assert.deepStrictEqual(cambios, { nombre: 'Maria Lopez', area: 'Compras', usuario: 'maria.lopez' });
+});
+
+test('prepararActualizacionUsuario arma nombre, area y correo para login corporativo', () => {
+  const cambios = prepararActualizacionUsuario(USUARIOS[0], { nombre: '  Andres Puerta  ', area: 'TI', email: '  ANDRES.PUERTA@ipuc.org.co ' });
+  assert.deepStrictEqual(cambios, { nombre: 'Andres Puerta', area: 'TI', emailCorporativo: 'andres.puerta@ipuc.org.co' });
+});
+
+test('prepararActualizacionUsuario exige el nombre', () => {
+  assert.throws(() => prepararActualizacionUsuario(USUARIOS[1], { nombre: '   ', usuario: 'maria' }), /nombre/i);
+});
+
+test('prepararActualizacionUsuario rechaza un usuario invalido en login de usuario y clave', () => {
+  assert.throws(() => prepararActualizacionUsuario(USUARIOS[1], { nombre: 'Maria', usuario: 'ab' }), /usuario/i);
+});
+
+test('prepararActualizacionUsuario rechaza un correo invalido en login corporativo', () => {
+  assert.throws(() => prepararActualizacionUsuario(USUARIOS[0], { nombre: 'Andres', email: 'no-es-correo' }), /correo/i);
+});
+
+test('prepararActualizacionUsuario rechaza un correo fuera del dominio ipuc.org.co', () => {
+  assert.throws(() => prepararActualizacionUsuario(USUARIOS[0], { nombre: 'Andres', email: 'andres@gmail.com' }), /ipuc\.org\.co/);
+});
+
+test('prepararActualizacionUsuario falla si el usuario no existe', () => {
+  assert.throws(() => prepararActualizacionUsuario(null, { nombre: 'Andres' }), /no existe/i);
 });

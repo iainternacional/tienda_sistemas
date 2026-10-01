@@ -52,9 +52,12 @@ function crearTransaccionFiado(datos) {
   };
 }
 
-function validarLineasFiado(lineas) {
+function validarLineasFiado(lineas, maximo) {
   if (!Array.isArray(lineas) || lineas.length === 0) {
     throw new Error('Debe haber al menos una linea para registrar');
+  }
+  if (maximo && lineas.length > maximo) {
+    throw new Error('Maximo ' + maximo + ' productos por registro');
   }
   lineas.forEach(function (linea, indice) {
     const numero = indice + 1;

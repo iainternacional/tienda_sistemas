@@ -194,6 +194,45 @@ function reporteInventario(lotes, productos) {
   };
 }
 
+function reporteComprasPorProducto(transacciones, usuarios, productoId, desde, hasta) {
+  const nombrePorId = {};
+  (usuarios || []).forEach(function (usuario) {
+    nombrePorId[usuario.id] = usuario.nombre;
+  });
+
+  const acumulado = {};
+
+  (transacciones || [])
+    .filter(function (transaccion) {
+      return productoId && transaccion.productoId === productoId &&
+        noAnulado(transaccion) && dentroDelRango(transaccion.fecha, desde, hasta);
+    })
+    .forEach(function (transaccion) {
+      const clave = transaccion.usuarioId;
+      if (!acumulado[clave]) {
+        acumulado[clave] = {
+          usuarioId: clave,
+          nombre: nombrePorId[clave] || clave,
+          cantidad: 0,
+          valor: 0
+        };
+      }
+      acumulado[clave].cantidad += transaccion.cantidad;
+      acumulado[clave].valor += transaccion.valorTotal;
+    });
+
+  const porUsuario = Object.keys(acumulado)
+    .map(function (clave) { return acumulado[clave]; })
+    .sort(function (a, b) { return b.cantidad - a.cantidad; });
+
+  return {
+    total: porUsuario.reduce(function (suma, fila) {
+      return { cantidad: suma.cantidad + fila.cantidad, valor: suma.valor + fila.valor };
+    }, { cantidad: 0, valor: 0 }),
+    porUsuario: porUsuario
+  };
+}
+
 if (typeof module !== 'undefined') {
   module.exports = {
     reporteGanancia,
@@ -201,6 +240,7 @@ if (typeof module !== 'undefined') {
     reporteCartera,
     reporteGastosCompartidos,
     reporteInventario,
+    reporteComprasPorProducto,
     dentroDelRango,
     noAnulado
   };

@@ -162,3 +162,26 @@ test('validarLineasFiado numera el error por la linea que falla, no por el indic
     /Linea 2/
   );
 });
+
+test('validarLineasFiado sin maximo no limita la cantidad de lineas', () => {
+  const cuatro = [
+    { productoId: 'p1', cantidad: 1 }, { productoId: 'p2', cantidad: 1 },
+    { productoId: 'p3', cantidad: 1 }, { productoId: 'p4', cantidad: 1 }
+  ];
+  assert.doesNotThrow(() => validarLineasFiado(cuatro));
+});
+
+test('validarLineasFiado con maximo rechaza si se supera', () => {
+  const cuatro = [
+    { productoId: 'p1', cantidad: 1 }, { productoId: 'p2', cantidad: 1 },
+    { productoId: 'p3', cantidad: 1 }, { productoId: 'p4', cantidad: 1 }
+  ];
+  assert.throws(() => validarLineasFiado(cuatro, 3), /Maximo 3 productos/i);
+});
+
+test('validarLineasFiado con maximo acepta hasta el limite exacto', () => {
+  const tres = [
+    { productoId: 'p1', cantidad: 1 }, { productoId: 'p2', cantidad: 1 }, { productoId: 'p3', cantidad: 1 }
+  ];
+  assert.doesNotThrow(() => validarLineasFiado(tres, 3));
+});

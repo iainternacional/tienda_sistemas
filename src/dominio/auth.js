@@ -144,6 +144,46 @@ function crearUsuarioCorporativo(datos) {
   };
 }
 
+function prepararActualizacionUsuario(usuarioExistente, cambios) {
+  if (!usuarioExistente) {
+    throw new Error('El usuario no existe');
+  }
+  const nombre = String(cambios.nombre === undefined || cambios.nombre === null ? '' : cambios.nombre).trim();
+  if (nombre === '') {
+    throw new Error('El nombre es obligatorio');
+  }
+  const area = String(cambios.area === undefined || cambios.area === null ? '' : cambios.area).trim();
+  const resultado = { nombre: nombre, area: area };
+
+  if (usuarioExistente.tipoLogin === 'usuario_clave') {
+    const usuario = textoComparable(cambios.usuario);
+    if (usuario === '') {
+      throw new Error('El usuario es obligatorio');
+    }
+    if (usuario.length < 3) {
+      throw new Error('El usuario debe tener al menos 3 caracteres');
+    }
+    if (!/^[a-z0-9._-]+$/.test(usuario)) {
+      throw new Error('El usuario solo puede tener letras, numeros, punto, guion y guion bajo');
+    }
+    resultado.usuario = usuario;
+  } else if (usuarioExistente.tipoLogin === 'google_corporativo') {
+    const email = textoComparable(cambios.email);
+    if (email === '') {
+      throw new Error('El correo es obligatorio');
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      throw new Error('El correo no tiene un formato valido');
+    }
+    if (!email.endsWith('@' + DOMINIO_CORPORATIVO)) {
+      throw new Error('El correo debe ser del dominio @' + DOMINIO_CORPORATIVO);
+    }
+    resultado.emailCorporativo = email;
+  }
+
+  return resultado;
+}
+
 function buscarUsuarioPorEmailCorporativo(usuarios, email) {
   const buscado = textoComparable(email);
   if (buscado === '') {
@@ -170,6 +210,7 @@ if (typeof module !== 'undefined') {
     validarUsuarioCorporativoNuevo,
     crearUsuarioCorporativo,
     buscarUsuarioPorEmailCorporativo,
+    prepararActualizacionUsuario,
     DOMINIO_CORPORATIVO
   };
 }

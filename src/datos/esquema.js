@@ -14,7 +14,7 @@ var ESQUEMA = {
   ],
   Prestamos: [
     'id', 'usuarioId', 'valor', 'fecha', 'estado',
-    'anuladoPor', 'anuladoFecha', 'anuladoMotivo'
+    'anuladoPor', 'anuladoFecha', 'anuladoMotivo', 'concepto'
   ],
   Pagos: [
     'id', 'usuarioId', 'valor', 'fecha', 'aplicadoA', 'estado',

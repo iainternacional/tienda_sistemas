@@ -139,16 +139,6 @@ function registrarFiadoSinBloqueo(libro, usuario, productoId, cantidad, origen) 
   return transaccion;
 }
 
-function registrarFiado(usuario, productoId, cantidad, origen) {
-  const bloqueo = LockService.getScriptLock();
-  bloqueo.waitLock(30000);
-  try {
-    return registrarFiadoSinBloqueo(obtenerLibro(), usuario, productoId, cantidad, origen);
-  } finally {
-    bloqueo.releaseLock();
-  }
-}
-
 function registrarFiadoMultiple(usuario, lineas, origen) {
   const bloqueo = LockService.getScriptLock();
   bloqueo.waitLock(30000);
@@ -176,13 +166,15 @@ function registrarFiadoMultiple(usuario, lineas, origen) {
   }
 }
 
-function apiRegistrarFiado(token, productoId, cantidad) {
+function apiRegistrarFiado(token, lineas) {
   try {
     const usuario = exigirUsuario(token);
-    const transaccion = registrarFiado(usuario, productoId, Number(cantidad), 'autoregistro');
+    validarLineasFiado(lineas, 3);
+    const transacciones = registrarFiadoMultiple(usuario, lineas, 'autoregistro');
+    const totalUnidades = transacciones.reduce(function (suma, t) { return suma + t.cantidad; }, 0);
     const estado = estadoDeUsuario(usuario);
     estado.ok = true;
-    estado.mensaje = 'Registrado: ' + transaccion.cantidad + ' x ' + transaccion.productoNombre;
+    estado.mensaje = 'Registrado: ' + transacciones.length + ' producto(s), ' + totalUnidades + ' unidad(es)';
     return estado;
   } catch (error) {
     return { ok: false, mensaje: error.message, saldo: 0, desglose: [], productos: [] };
@@ -260,10 +252,18 @@ function apiActualizarProducto(token, productoId, cambios) {
 function usuariosVisibles() {
   return leerTodo(obtenerLibro(), 'Usuarios')
     .filter(function (usuario) {
-      return usuario.activo === true && usuario.rol === 'comprador' && usuario.esPseudoUsuario !== true;
+      return usuario.activo === true && usuario.esPseudoUsuario !== true;
     })
     .map(function (usuario) {
-      return { id: usuario.id, nombre: usuario.nombre, esPseudoUsuario: usuario.esPseudoUsuario === true };
+      return {
+        id: usuario.id,
+        nombre: usuario.nombre,
+        area: usuario.area,
+        tipoLogin: usuario.tipoLogin,
+        usuario: usuario.usuario,
+        emailCorporativo: usuario.emailCorporativo,
+        esPseudoUsuario: usuario.esPseudoUsuario === true
+      };
     });
 }
 
@@ -341,6 +341,34 @@ function apiCrearUsuarioCorporativo(token, datos) {
   }
 }
 
+function apiActualizarUsuario(token, usuarioId, cambios) {
+  try {
+    exigirAdmin(token);
+    const libro = obtenerLibro();
+    const usuarios = leerTodo(libro, 'Usuarios');
+    const existente = usuarios.filter(function (usuario) { return usuario.id === usuarioId; })[0];
+    if (!existente) {
+      return { ok: false, mensaje: 'No se encontro el comprador', usuarios: [] };
+    }
+    if (existente.tipoLogin === 'usuario_clave') {
+      const otro = buscarUsuarioPorNombreDeUsuario(usuarios, cambios.usuario);
+      if (otro && otro.id !== usuarioId) {
+        return { ok: false, mensaje: 'Ya existe un usuario con ese login', usuarios: [] };
+      }
+    } else if (existente.tipoLogin === 'google_corporativo') {
+      const otro = buscarUsuarioPorEmailCorporativo(usuarios, cambios.email);
+      if (otro && otro.id !== usuarioId) {
+        return { ok: false, mensaje: 'Ya existe un usuario con ese correo', usuarios: [] };
+      }
+    }
+    const permitidos = prepararActualizacionUsuario(existente, cambios);
+    actualizarPorId(libro, 'Usuarios', usuarioId, permitidos);
+    return { ok: true, mensaje: 'Comprador actualizado', usuarios: usuariosVisibles() };
+  } catch (error) {
+    return { ok: false, mensaje: error.message, usuarios: [] };
+  }
+}
+
 function apiRegistrarFiadoComoAdmin(token, usuarioId, lineas) {
   try {
     exigirAdmin(token);
@@ -367,7 +395,7 @@ function apiRegistrarFiadoComoAdmin(token, usuarioId, lineas) {
   }
 }
 
-function apiRegistrarPrestamo(token, usuarioId, valor) {
+function apiRegistrarPrestamo(token, usuarioId, valor, concepto) {
   try {
     exigirAdmin(token);
     const libro = obtenerLibro();
@@ -386,7 +414,8 @@ function apiRegistrarPrestamo(token, usuarioId, valor) {
       id: nuevoId(),
       usuarioId: destino.id,
       valor: Number(valor),
-      fecha: ahoraIso()
+      fecha: ahoraIso(),
+      concepto: concepto
     });
     agregarFila(libro, 'Prestamos', prestamo);
     return { ok: true, mensaje: 'Prestamo registrado a ' + destino.nombre };
@@ -775,7 +804,7 @@ function apiRegistrarPago(token, usuarioId, valor) {
   }
 }
 
-function apiReportes(token, desde, hasta, usuarioId) {
+function apiReportes(token, desde, hasta, usuarioId, productoId) {
   try {
     exigirAdmin(token);
     const libro = obtenerLibro();
@@ -791,7 +820,8 @@ function apiReportes(token, desde, hasta, usuarioId) {
       perdidas: reportePerdidas(perdidas, desde, hasta),
       cartera: reporteCartera(movimientos, usuarios, usuarioId),
       gastos: reporteGastosCompartidos(movimientos.gastos),
-      inventario: reporteInventario(lotes, productos)
+      inventario: reporteInventario(lotes, productos),
+      compras: reporteComprasPorProducto(movimientos.transacciones, usuarios, productoId, desde, hasta)
     };
   } catch (error) {
     return {
@@ -801,7 +831,8 @@ function apiReportes(token, desde, hasta, usuarioId) {
       perdidas: { total: 0, lineas: [] },
       cartera: { total: 0, porUsuario: [] },
       gastos: [],
-      inventario: { valorTotal: 0, porProducto: [] }
+      inventario: { valorTotal: 0, porProducto: [] },
+      compras: { total: { cantidad: 0, valor: 0 }, porUsuario: [] }
     };
   }
 }
@@ -863,7 +894,7 @@ function apiListarMovimientosRecientes(token, usuarioId) {
         id: registro.id, tipo: 'prestamo', fecha: registro.fecha,
         usuarioId: registro.usuarioId,
         quien: nombrePorId[registro.usuarioId] || registro.usuarioId,
-        concepto: 'Prestamo en efectivo',
+        concepto: registro.concepto || 'Prestamo en efectivo',
         valor: registro.valor, estado: registro.estado
       });
     });

@@ -61,7 +61,7 @@ test('reporteGanancia sin usuarioId incluye a todos los usuarios', () => {
   assert.strictEqual(reporte.total, 2800);
 });
 
-const { reportePerdidas, reporteCartera, reporteGastosCompartidos } = require('../../src/dominio/reportes.js');
+const { reportePerdidas, reporteCartera, reporteGastosCompartidos, reporteComprasPorProducto } = require('../../src/dominio/reportes.js');
 
 const PERDIDAS = [
   { id: 'pe1', productoNombre: 'Cafe', cantidad: 2, motivo: 'se vencio', valor: 1600, fecha: '2026-09-10T10:00:00.000Z', estado: 'pendiente' },
@@ -195,4 +195,36 @@ test('reporteInventario no lista productos sin lotes', () => {
   const reporte = reporteInventario([], productos);
   assert.strictEqual(reporte.valorTotal, 0);
   assert.deepStrictEqual(reporte.porProducto, []);
+});
+
+test('reporteComprasPorProducto agrupa por usuario, ignorando anuladas', () => {
+  const reporte = reporteComprasPorProducto(TRANSACCIONES, USUARIOS, 'p1', '2026-09-01', '2026-09-30');
+  assert.strictEqual(reporte.total.cantidad, 3);
+  assert.strictEqual(reporte.total.valor, 4500);
+  assert.deepStrictEqual(reporte.porUsuario.map(u => u.nombre), ['Ana', 'Beto']);
+  assert.strictEqual(reporte.porUsuario[0].cantidad, 2);
+  assert.strictEqual(reporte.porUsuario[0].valor, 3000);
+});
+
+test('reporteComprasPorProducto respeta el rango de fechas', () => {
+  const reporte = reporteComprasPorProducto(TRANSACCIONES, USUARIOS, 'p1', '2026-09-13', '2026-09-13');
+  assert.deepStrictEqual(reporte.porUsuario.map(u => u.nombre), ['Beto']);
+  assert.strictEqual(reporte.total.cantidad, 1);
+});
+
+test('reporteComprasPorProducto ordena de mayor a menor cantidad', () => {
+  const reporte = reporteComprasPorProducto(TRANSACCIONES, USUARIOS, 'p1', '2026-09-01', '2026-09-30');
+  assert.deepStrictEqual(reporte.porUsuario.map(u => u.usuarioId), ['u1', 'u2']);
+});
+
+test('reporteComprasPorProducto sin productoId devuelve vacio', () => {
+  const reporte = reporteComprasPorProducto(TRANSACCIONES, USUARIOS, '', '2026-09-01', '2026-09-30');
+  assert.deepStrictEqual(reporte.porUsuario, []);
+  assert.strictEqual(reporte.total.cantidad, 0);
+});
+
+test('reporteComprasPorProducto usa el id cuando no encuentra el nombre del usuario', () => {
+  const transacciones = [{ id: 't9', usuarioId: 'ux', productoId: 'p1', cantidad: 1, valorTotal: 1500, fecha: '2026-09-10T10:00:00.000Z', estado: 'pendiente' }];
+  const reporte = reporteComprasPorProducto(transacciones, USUARIOS, 'p1', '2026-09-01', '2026-09-30');
+  assert.strictEqual(reporte.porUsuario[0].nombre, 'ux');
 });

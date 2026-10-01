@@ -58,6 +58,7 @@
                 <input id="precioVenta" type="number" min="1" step="1">
               </div>
               <button id="btnCrearProducto" class="campo-ancho">Crear producto</button>
+              <div id="spinnerProducto" class="spinner campo-ancho" hidden></div>
               <div id="avisoProducto" class="campo-ancho"></div>
             </div>
           </div>
@@ -160,6 +161,36 @@
           </div>
 
           <div class="bloque">
+            <h3>Editar comprador</h3>
+            <div class="rejilla">
+              <div class="campo">
+                <label for="usuarioEditar">Comprador</label>
+                <select id="usuarioEditar">
+                  <option value="">Seleccione un comprador</option>
+                </select>
+              </div>
+              <div class="campo">
+                <label for="nombreEditar">Nombre</label>
+                <input id="nombreEditar" type="text">
+              </div>
+              <div class="campo">
+                <label for="areaEditar">Area</label>
+                <input id="areaEditar" type="text">
+              </div>
+              <div class="campo" id="campoUsuarioEditar" hidden>
+                <label for="usuarioLoginEditar">Usuario</label>
+                <input id="usuarioLoginEditar" type="text" autocomplete="off">
+              </div>
+              <div class="campo" id="campoCorreoEditar" hidden>
+                <label for="correoEditar">Correo corporativo</label>
+                <input id="correoEditar" type="email" autocomplete="off">
+              </div>
+              <button id="btnEditarUsuario" class="campo-ancho">Guardar cambios</button>
+              <div id="avisoEditarUsuario" class="campo-ancho"></div>
+            </div>
+          </div>
+
+          <div class="bloque">
             <h3>Registrar fiado a nombre de alguien</h3>
             <div class="rejilla">
               <div class="campo">
@@ -190,6 +221,10 @@
               <div class="campo">
                 <label for="valorPrestamo">Valor prestado</label>
                 <input id="valorPrestamo" type="number" min="1" step="1">
+              </div>
+              <div class="campo">
+                <label for="conceptoPrestamo">Concepto (opcional)</label>
+                <input id="conceptoPrestamo" type="text" placeholder="Ej: Saldo anterior sin pagar">
               </div>
               <button id="btnPrestamo" class="campo-ancho">Registrar prestamo</button>
               <div id="avisoPrestamo" class="campo-ancho"></div>
@@ -287,6 +322,12 @@
                   <option value="">Todos los compradores</option>
                 </select>
               </div>
+              <div class="campo">
+                <label for="productoReporte">Producto</label>
+                <select id="productoReporte">
+                  <option value="">Seleccione un producto</option>
+                </select>
+              </div>
               <button id="btnReportes" class="campo-ancho">Ver reportes</button>
               <div id="avisoReportes" class="campo-ancho"></div>
               <div id="resumenReportes" class="campo-ancho"></div>
@@ -320,6 +361,14 @@
               </thead>
               <tbody id="tablaInventario"></tbody>
             </table>
+            <h4>Compras por producto</h4>
+            <p class="sub" id="resumenCompras"></p>
+            <table>
+              <thead>
+                <tr><th>Comprador</th><th class="valor">Cant.</th><th class="valor">Valor</th></tr>
+              </thead>
+              <tbody id="tablaCompras"></tbody>
+            </table>
           </div>
 
           <div class="bloque">
@@ -340,6 +389,7 @@
       var token = '';
       try { token = localStorage.getItem('tokenTienda') || ''; } catch (e) { token = ''; }
       var productosCache = [];
+      var usuariosCache = [];
 
       function pesos(valor) {
         return '$' + Number(valor || 0).toLocaleString('es-CO');
@@ -419,12 +469,28 @@
         });
       }
 
+      function pintarSelectProductoReporte(productos) {
+        var select = document.getElementById('productoReporte');
+        var valorPrevio = select.value;
+        select.innerHTML = '<option value="">Seleccione un producto</option>';
+        productos.slice().sort(function (a, b) {
+          return a.nombre.localeCompare(b.nombre, 'es');
+        }).forEach(function (producto) {
+          var opcion = document.createElement('option');
+          opcion.value = producto.id;
+          opcion.textContent = producto.alias ? producto.nombre + ' · ' + producto.alias : producto.nombre;
+          select.appendChild(opcion);
+        });
+        select.value = valorPrevio;
+      }
+
       function pintarProductos(productos) {
         productosCache = productos;
         llenarSelectProductos(document.getElementById('productoAjuste'), productos);
         llenarSelectProductos(document.getElementById('productoPerdida'), productos);
         llenarDatalist(document.getElementById('listaNombresProducto'), productos.map(function (p) { return p.nombre; }));
         llenarDatalist(document.getElementById('listaAliasProducto'), productos.map(function (p) { return p.alias; }).filter(function (a) { return a; }));
+        pintarSelectProductoReporte(productos);
         pintarTablaFiadoAdmin();
       }
 
@@ -486,6 +552,8 @@
       });
 
       function pintarUsuarios(usuarios) {
+        usuariosCache = usuarios;
+
         ['usuarioDestino', 'usuarioPrestamo', 'usuarioPago'].forEach(function (idSelect) {
           var select = document.getElementById(idSelect);
           select.innerHTML = '<option value="">Seleccione un comprador</option>';
@@ -505,7 +573,46 @@
           opcion.textContent = usuario.nombre;
           selectParticipantes.appendChild(opcion);
         });
+
+        var selectEditar = document.getElementById('usuarioEditar');
+        var valorPrevio = selectEditar.value;
+        selectEditar.innerHTML = '<option value="">Seleccione un comprador</option>';
+        usuarios.slice().sort(function (a, b) {
+          return a.nombre.localeCompare(b.nombre, 'es');
+        }).forEach(function (usuario) {
+          var opcion = document.createElement('option');
+          opcion.value = usuario.id;
+          opcion.textContent = usuario.nombre;
+          selectEditar.appendChild(opcion);
+        });
+        selectEditar.value = valorPrevio;
       }
+
+      function pintarFormularioEditarUsuario(usuarioId) {
+        var usuario = usuariosCache.filter(function (u) { return u.id === usuarioId; })[0];
+        var campoUsuario = document.getElementById('campoUsuarioEditar');
+        var campoCorreo = document.getElementById('campoCorreoEditar');
+        if (!usuario) {
+          document.getElementById('nombreEditar').value = '';
+          document.getElementById('areaEditar').value = '';
+          document.getElementById('usuarioLoginEditar').value = '';
+          document.getElementById('correoEditar').value = '';
+          campoUsuario.hidden = true;
+          campoCorreo.hidden = true;
+          return;
+        }
+        document.getElementById('nombreEditar').value = usuario.nombre;
+        document.getElementById('areaEditar').value = usuario.area || '';
+        campoUsuario.hidden = usuario.tipoLogin !== 'usuario_clave';
+        campoCorreo.hidden = usuario.tipoLogin !== 'google_corporativo';
+        document.getElementById('usuarioLoginEditar').value = usuario.tipoLogin === 'usuario_clave' ? usuario.usuario : '';
+        document.getElementById('correoEditar').value = usuario.tipoLogin === 'google_corporativo' ? usuario.emailCorporativo : '';
+      }
+
+      document.getElementById('usuarioEditar').addEventListener('change', function () {
+        mostrarAviso('avisoEditarUsuario', '', false);
+        pintarFormularioEditarUsuario(this.value);
+      });
 
       function pintarCompradorReporte(usuarios) {
         var selectFiltro = document.getElementById('compradorReporte');
@@ -587,8 +694,11 @@
       document.getElementById('btnCrearProducto').addEventListener('click', function () {
         var boton = this;
         boton.disabled = true;
+        mostrarAviso('avisoProducto', '', false);
+        document.getElementById('spinnerProducto').hidden = false;
         google.script.run.withSuccessHandler(function (respuesta) {
           boton.disabled = false;
+          document.getElementById('spinnerProducto').hidden = true;
           mostrarAviso('avisoProducto', respuesta.mensaje, !respuesta.ok);
           if (respuesta.ok) {
             pintarProductos(respuesta.productos);
@@ -653,6 +763,33 @@
         });
       });
 
+      document.getElementById('btnEditarUsuario').addEventListener('click', function () {
+        var usuarioId = document.getElementById('usuarioEditar').value;
+        if (!usuarioId) {
+          mostrarAviso('avisoEditarUsuario', 'Seleccione un comprador', true);
+          return;
+        }
+        var boton = this;
+        boton.disabled = true;
+        google.script.run.withSuccessHandler(function (respuesta) {
+          boton.disabled = false;
+          mostrarAviso('avisoEditarUsuario', respuesta.mensaje, !respuesta.ok);
+          if (respuesta.ok) {
+            pintarUsuarios(respuesta.usuarios);
+            google.script.run.withSuccessHandler(function (respuestaReportes) {
+              pintarCompradorReporte(respuestaReportes.usuarios);
+            }).apiListarUsuariosParaReportes(token);
+            document.getElementById('usuarioEditar').value = '';
+            pintarFormularioEditarUsuario('');
+          }
+        }).apiActualizarUsuario(token, usuarioId, {
+          nombre: document.getElementById('nombreEditar').value,
+          area: document.getElementById('areaEditar').value,
+          usuario: document.getElementById('usuarioLoginEditar').value,
+          email: document.getElementById('correoEditar').value
+        });
+      });
+
       document.getElementById('btnAjustarStock').addEventListener('click', function () {
         var boton = this;
         boton.disabled = true;
@@ -697,11 +834,16 @@
         google.script.run.withSuccessHandler(function (respuesta) {
           boton.disabled = false;
           mostrarAviso('avisoPrestamo', respuesta.mensaje, !respuesta.ok);
-          if (respuesta.ok) { document.getElementById('valorPrestamo').value = ''; }
+          if (respuesta.ok) {
+            document.getElementById('usuarioPrestamo').value = '';
+            document.getElementById('valorPrestamo').value = '';
+            document.getElementById('conceptoPrestamo').value = '';
+          }
         }).apiRegistrarPrestamo(
           token,
           document.getElementById('usuarioPrestamo').value,
-          Number(document.getElementById('valorPrestamo').value)
+          Number(document.getElementById('valorPrestamo').value),
+          document.getElementById('conceptoPrestamo').value
         );
       });
 
@@ -890,11 +1032,22 @@
             });
           });
           pintarFilas('tablaInventario', filasInventario);
+
+          if (document.getElementById('productoReporte').value) {
+            document.getElementById('resumenCompras').textContent =
+              'Total comprado: ' + String(respuesta.compras.total.cantidad) + ' unidad(es) · ' + pesos(respuesta.compras.total.valor);
+          } else {
+            document.getElementById('resumenCompras').textContent = 'Seleccione un producto para ver quien lo ha comprado.';
+          }
+          pintarFilas('tablaCompras', respuesta.compras.porUsuario.map(function (fila) {
+            return [fila.nombre, String(fila.cantidad), pesos(fila.valor)];
+          }));
         }).apiReportes(
           token,
           document.getElementById('desdeReporte').value,
           document.getElementById('hastaReporte').value,
-          document.getElementById('compradorReporte').value
+          document.getElementById('compradorReporte').value,
+          document.getElementById('productoReporte').value
         );
       });
 
