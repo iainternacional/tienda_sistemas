@@ -1,3 +1,5 @@
+const DOMINIO_CORPORATIVO = 'ipuc.org.co';
+
 function hashClave(clave, salt, funcionHash) {
   return funcionHash(String(salt) + ':' + String(clave));
 }
@@ -115,6 +117,9 @@ function validarUsuarioCorporativoNuevo(datos) {
     errores.push('El correo es obligatorio');
   } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     errores.push('El correo no tiene un formato valido');
+  } else if (!email.endsWith('@' + DOMINIO_CORPORATIVO)) {
+    errores.push('El correo debe ser del dominio @' + DOMINIO_CORPORATIVO +
+      '. Para compradores externos use "Comprador con usuario y clave"');
   }
   return { valido: errores.length === 0, errores: errores };
 }
@@ -137,6 +142,46 @@ function crearUsuarioCorporativo(datos) {
     esPseudoUsuario: false,
     activo: true
   };
+}
+
+function prepararActualizacionUsuario(usuarioExistente, cambios) {
+  if (!usuarioExistente) {
+    throw new Error('El usuario no existe');
+  }
+  const nombre = String(cambios.nombre === undefined || cambios.nombre === null ? '' : cambios.nombre).trim();
+  if (nombre === '') {
+    throw new Error('El nombre es obligatorio');
+  }
+  const area = String(cambios.area === undefined || cambios.area === null ? '' : cambios.area).trim();
+  const resultado = { nombre: nombre, area: area };
+
+  if (usuarioExistente.tipoLogin === 'usuario_clave') {
+    const usuario = textoComparable(cambios.usuario);
+    if (usuario === '') {
+      throw new Error('El usuario es obligatorio');
+    }
+    if (usuario.length < 3) {
+      throw new Error('El usuario debe tener al menos 3 caracteres');
+    }
+    if (!/^[a-z0-9._-]+$/.test(usuario)) {
+      throw new Error('El usuario solo puede tener letras, numeros, punto, guion y guion bajo');
+    }
+    resultado.usuario = usuario;
+  } else if (usuarioExistente.tipoLogin === 'google_corporativo') {
+    const email = textoComparable(cambios.email);
+    if (email === '') {
+      throw new Error('El correo es obligatorio');
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      throw new Error('El correo no tiene un formato valido');
+    }
+    if (!email.endsWith('@' + DOMINIO_CORPORATIVO)) {
+      throw new Error('El correo debe ser del dominio @' + DOMINIO_CORPORATIVO);
+    }
+    resultado.emailCorporativo = email;
+  }
+
+  return resultado;
 }
 
 function buscarUsuarioPorEmailCorporativo(usuarios, email) {
@@ -164,6 +209,8 @@ if (typeof module !== 'undefined') {
     crearUsuarioComprador,
     validarUsuarioCorporativoNuevo,
     crearUsuarioCorporativo,
-    buscarUsuarioPorEmailCorporativo
+    buscarUsuarioPorEmailCorporativo,
+    prepararActualizacionUsuario,
+    DOMINIO_CORPORATIVO
   };
 }

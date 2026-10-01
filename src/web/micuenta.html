@@ -27,10 +27,13 @@
 
       <div class="tarjeta">
         <h2>Registrar lo que me llevo</h2>
-        <label for="producto">Producto</label>
-        <select id="producto"></select>
-        <label for="cantidad">Cantidad</label>
-        <input id="cantidad" type="number" min="1" step="1" value="1">
+        <table>
+          <thead>
+            <tr><th>Producto</th><th class="valor">Cantidad</th><th></th></tr>
+          </thead>
+          <tbody id="cuerpoTablaRegistro"></tbody>
+        </table>
+        <button id="btnAgregarLineaRegistro">Agregar producto</button>
         <button id="btnRegistrar">Registrar</button>
         <div id="avisoRegistro"></div>
       </div>
@@ -50,6 +53,9 @@
     <script>
       var token = '';
       try { token = localStorage.getItem('tokenTienda') || ''; } catch (e) { token = ''; }
+      var productosCache = [];
+      var MAXIMO_LINEAS_REGISTRO = 3;
+      var lineasRegistro = [{ productoId: '', cantidad: 1 }];
 
       function pesos(valor) {
         return '$' + Number(valor || 0).toLocaleString('es-CO');
@@ -68,6 +74,78 @@
         contenedor.firstChild.textContent = texto;
       }
 
+      function llenarSelectProducto(select, productos) {
+        select.innerHTML = '';
+        var opcionVacia = document.createElement('option');
+        opcionVacia.value = '';
+        opcionVacia.textContent = 'Seleccione un producto';
+        select.appendChild(opcionVacia);
+        productos.slice().sort(function (a, b) {
+          return a.nombre.localeCompare(b.nombre, 'es');
+        }).forEach(function (producto) {
+          var opcion = document.createElement('option');
+          opcion.value = producto.id;
+          var etiqueta = producto.alias ? producto.nombre + ' · ' + producto.alias : producto.nombre;
+          opcion.textContent = etiqueta + ' - ' + pesos(producto.precioVenta) + ' (quedan ' + producto.stockActual + ')';
+          opcion.disabled = producto.stockActual <= 0;
+          select.appendChild(opcion);
+        });
+      }
+
+      function pintarTablaRegistro() {
+        var cuerpo = document.getElementById('cuerpoTablaRegistro');
+        cuerpo.innerHTML = '';
+        lineasRegistro.forEach(function (linea, indice) {
+          var fila = document.createElement('tr');
+
+          var celdaProducto = document.createElement('td');
+          var select = document.createElement('select');
+          llenarSelectProducto(select, productosCache);
+          select.value = linea.productoId;
+          if (select.value !== linea.productoId) { select.value = ''; linea.productoId = ''; }
+          select.addEventListener('change', function () {
+            lineasRegistro[indice].productoId = select.value;
+          });
+          celdaProducto.appendChild(select);
+
+          var celdaCantidad = document.createElement('td');
+          var inputCantidad = document.createElement('input');
+          inputCantidad.type = 'number';
+          inputCantidad.min = '1';
+          inputCantidad.step = '1';
+          inputCantidad.value = linea.cantidad;
+          inputCantidad.addEventListener('input', function () {
+            lineasRegistro[indice].cantidad = Number(inputCantidad.value);
+          });
+          celdaCantidad.appendChild(inputCantidad);
+
+          var celdaQuitar = document.createElement('td');
+          var botonQuitar = document.createElement('button');
+          botonQuitar.textContent = 'quitar';
+          botonQuitar.disabled = lineasRegistro.length === 1;
+          botonQuitar.addEventListener('click', function () {
+            if (lineasRegistro.length > 1) {
+              lineasRegistro.splice(indice, 1);
+              pintarTablaRegistro();
+            }
+          });
+          celdaQuitar.appendChild(botonQuitar);
+
+          fila.appendChild(celdaProducto);
+          fila.appendChild(celdaCantidad);
+          fila.appendChild(celdaQuitar);
+          cuerpo.appendChild(fila);
+        });
+        document.getElementById('btnAgregarLineaRegistro').disabled = lineasRegistro.length >= MAXIMO_LINEAS_REGISTRO;
+      }
+
+      document.getElementById('btnAgregarLineaRegistro').addEventListener('click', function () {
+        if (lineasRegistro.length < MAXIMO_LINEAS_REGISTRO) {
+          lineasRegistro.push({ productoId: '', cantidad: 1 });
+          pintarTablaRegistro();
+        }
+      });
+
       function pintarEstado(estado) {
         document.getElementById('cargando').hidden = true;
         if (!estado.autenticado) {
@@ -80,16 +158,8 @@
         document.getElementById('saludo').textContent = 'Hola, ' + estado.nombre;
         document.getElementById('saldo').textContent = pesos(estado.saldo);
 
-        var select = document.getElementById('producto');
-        select.innerHTML = '';
-        estado.productos.forEach(function (producto) {
-          var opcion = document.createElement('option');
-          opcion.value = producto.id;
-          var etiqueta = producto.alias ? producto.nombre + ' · ' + producto.alias : producto.nombre;
-          opcion.textContent = etiqueta + ' - ' + pesos(producto.precioVenta) + ' (quedan ' + producto.stockActual + ')';
-          opcion.disabled = producto.stockActual <= 0;
-          select.appendChild(opcion);
-        });
+        productosCache = estado.productos;
+        pintarTablaRegistro();
 
         var cuerpo = document.getElementById('desglose');
         cuerpo.innerHTML = '';
@@ -138,14 +208,10 @@
           mostrarAviso('avisoRegistro', respuesta.mensaje, !respuesta.ok);
           if (respuesta.ok) {
             respuesta.autenticado = true;
+            lineasRegistro = [{ productoId: '', cantidad: 1 }];
             pintarEstado(respuesta);
-            document.getElementById('cantidad').value = '1';
           }
-        }).apiRegistrarFiado(
-          token,
-          document.getElementById('producto').value,
-          Number(document.getElementById('cantidad').value)
-        );
+        }).apiRegistrarFiado(token, lineasRegistro);
       });
 
       cargarEstado();

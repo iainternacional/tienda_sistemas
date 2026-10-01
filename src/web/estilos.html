@@ -56,6 +56,21 @@
   .aviso.ok { background: #e7f4ec; color: var(--ok); }
   .vacio { color: var(--suave); font-size: 14px; }
 
+  .spinner {
+    display: block;
+    width: 18px;
+    height: 18px;
+    margin: 10px auto 0;
+    border: 2px solid var(--borde);
+    border-top-color: var(--acento);
+    border-radius: 50%;
+    animation: girar 0.6s linear infinite;
+  }
+  .spinner[hidden] { display: none; }
+  @keyframes girar {
+    to { transform: rotate(360deg); }
+  }
+
   details.seccion {
     background: var(--tarjeta);
     border: 1px solid var(--borde);

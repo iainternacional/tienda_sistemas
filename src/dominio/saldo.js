@@ -35,7 +35,7 @@ function lineasDeUsuario(movimientos, usuarioId) {
         id: prestamo.id,
         fecha: prestamo.fecha,
         tipo: 'prestamo',
-        concepto: 'Prestamo en efectivo',
+        concepto: prestamo.concepto || 'Prestamo en efectivo',
         cantidad: 1,
         valorTotal: prestamo.valor
       });
