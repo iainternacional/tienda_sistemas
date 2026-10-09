@@ -151,6 +151,18 @@ test('reporteGastosCompartidos detalla el valor por persona', () => {
   assert.strictEqual(cumple.valorPorPersona, 10000);
 });
 
+test('reporteGastosCompartidos incluye el producto cuando el gasto lo tiene', () => {
+  const conProducto = GASTOS_REPORTE.map(function (g) {
+    return g.id === 'g1' ? Object.assign({}, g, { productoNombre: 'Gaseosa', cantidad: 3 }) : g;
+  });
+  const grupos = reporteGastosCompartidos(conProducto);
+  const cumple = grupos[0].gastos.find(g => g.id === 'g1');
+  assert.strictEqual(cumple.productoNombre, 'Gaseosa');
+  assert.strictEqual(cumple.cantidad, 3);
+  const otro = grupos[1].gastos[0];
+  assert.strictEqual(otro.productoNombre, '');
+});
+
 test('reporteInventario agrupa los lotes activos por producto, del mas viejo al mas nuevo', () => {
   const productos = [
     { id: 'p1', nombre: 'Quatro', activo: true },

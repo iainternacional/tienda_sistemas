@@ -32,15 +32,21 @@ function crearTransaccionFiado(datos) {
   if (!hayStockSuficiente(datos.producto, datos.cantidad)) {
     throw new Error('Stock insuficiente para ' + datos.producto.nombre);
   }
-  const valorUnitario = datos.producto.precioVenta;
+  // Cada tramo se cobra al precio de su lote; sin ese dato se usa el precio del producto.
+  const valorTotal = datos.consumo.valorTotal !== undefined
+    ? datos.consumo.valorTotal
+    : calcularValorTotal(datos.cantidad, datos.producto.precioVenta);
+  if (!esEnteroPositivo(valorTotal)) {
+    throw new Error('El precio de venta de ' + datos.producto.nombre + ' no es valido');
+  }
   return {
     id: datos.id,
     usuarioId: datos.usuarioId,
     productoId: datos.producto.id,
     productoNombre: datos.producto.nombre,
     cantidad: datos.cantidad,
-    valorUnitario: valorUnitario,
-    valorTotal: calcularValorTotal(datos.cantidad, valorUnitario),
+    valorUnitario: Math.round(valorTotal / datos.cantidad),
+    valorTotal: valorTotal,
     fecha: datos.fecha,
     origen: datos.origen,
     estado: 'pendiente',

@@ -50,7 +50,9 @@ function exigirAdmin(token) {
 }
 
 function productosVisibles() {
-  return leerTodo(obtenerLibro(), 'Productos')
+  const libro = obtenerLibro();
+  const lotes = leerTodo(libro, 'Lotes');
+  return leerTodo(libro, 'Productos')
     .filter(function (producto) { return producto.activo === true; })
     .map(function (producto) {
       return {
@@ -58,10 +60,16 @@ function productosVisibles() {
         nombre: producto.nombre,
         alias: producto.alias,
         categoria: producto.categoria,
-        precioVenta: producto.precioVenta,
+        precioVenta: precioVigente(lotes, producto.id, producto.precioVenta),
         stockActual: producto.stockActual
       };
     });
+}
+
+function guardarPrecioDeLotes(libro, lotes) {
+  lotes.forEach(function (lote) {
+    actualizarPorId(libro, 'Lotes', lote.id, { precioVenta: lote.precioVenta });
+  });
 }
 
 function leerMovimientos(libro) {
@@ -120,7 +128,7 @@ function registrarFiadoSinBloqueo(libro, usuario, productoId, cantidad, origen) 
   if (!producto || producto.activo !== true) {
     throw new Error('El producto no existe o esta inactivo');
   }
-  const consumo = consumirDeLotes(leerTodo(libro, 'Lotes'), producto.id, cantidad, producto.nombre);
+  const consumo = consumirDeLotes(leerTodo(libro, 'Lotes'), producto.id, cantidad, producto.nombre, producto.precioVenta);
   const transaccion = crearTransaccionFiado({
     id: nuevoId(),
     usuarioId: usuario.id,
@@ -219,7 +227,8 @@ function apiCrearProducto(token, datos) {
         productoId: productoId,
         fecha: ahoraIso(),
         cantidad: normalizados.stockActual,
-        costoUnitario: normalizados.costo
+        costoUnitario: normalizados.costo,
+        precioVenta: normalizados.precioVenta
       }));
     }
     return { ok: true, mensaje: 'Producto creado', productos: productosVisibles() };
@@ -232,18 +241,71 @@ function apiActualizarProducto(token, productoId, cambios) {
   try {
     exigirAdmin(token);
     const permitidos = {};
-    ['nombre', 'categoria', 'costo', 'precioVenta', 'activo'].forEach(function (campo) {
+    ['nombre', 'alias', 'categoria', 'costo', 'precioVenta', 'porcentajeAumento', 'activo'].forEach(function (campo) {
       if (cambios[campo] !== undefined && cambios[campo] !== null && cambios[campo] !== '') {
-        permitidos[campo] = campo === 'nombre' || campo === 'categoria'
+        permitidos[campo] = campo === 'nombre' || campo === 'alias' || campo === 'categoria'
           ? String(cambios[campo]).trim()
           : (campo === 'activo' ? cambios[campo] === true : Number(cambios[campo]));
       }
     });
-    const encontrado = actualizarPorId(obtenerLibro(), 'Productos', productoId, permitidos);
-    if (!encontrado) {
+    if (cambios.alias === '') {
+      permitidos.alias = '';
+    }
+    if (permitidos.nombre === '') {
+      return { ok: false, mensaje: 'El nombre no puede quedar vacio', productos: [] };
+    }
+    if (permitidos.precioVenta !== undefined && !(permitidos.precioVenta > 0)) {
+      return { ok: false, mensaje: 'El precio de venta debe ser mayor a cero', productos: [] };
+    }
+    if (permitidos.porcentajeAumento !== undefined && !(permitidos.porcentajeAumento >= 0)) {
+      return { ok: false, mensaje: 'El porcentaje de aumento no puede ser negativo', productos: [] };
+    }
+    if (permitidos.precioVenta !== undefined && !Number.isInteger(permitidos.precioVenta)) {
+      return { ok: false, mensaje: 'El precio de venta debe ser un numero entero', productos: [] };
+    }
+    const libro = obtenerLibro();
+    const productos = leerTodo(libro, 'Productos');
+    if (permitidos.nombre) {
+      const repetido = buscarProductoPorNombre(productos, permitidos.nombre);
+      if (repetido && repetido.id !== productoId) {
+        return { ok: false, mensaje: 'Ya existe un producto con ese nombre', productos: [] };
+      }
+    }
+    const actual = productos.filter(function (p) { return p.id === productoId; })[0];
+    if (!actual) {
       return { ok: false, mensaje: 'No se encontro el producto', productos: [] };
     }
+    actualizarPorId(libro, 'Productos', productoId, permitidos);
+    // Un cambio manual de precio aplica a todas las unidades que quedan, de cualquier lote.
+    if (permitidos.precioVenta !== undefined && permitidos.precioVenta !== Number(actual.precioVenta)) {
+      guardarPrecioDeLotes(libro, asignarPrecioALotesConStock(leerTodo(libro, 'Lotes'), productoId, permitidos.precioVenta));
+    }
     return { ok: true, mensaje: 'Producto actualizado', productos: productosVisibles() };
+  } catch (error) {
+    return { ok: false, mensaje: error.message, productos: [] };
+  }
+}
+
+function apiListarProductosAdmin(token) {
+  try {
+    exigirAdmin(token);
+    const libro = obtenerLibro();
+    const lotes = leerTodo(libro, 'Lotes');
+    const productos = leerTodo(libro, 'Productos').map(function (producto) {
+      return {
+        id: producto.id,
+        nombre: producto.nombre,
+        alias: producto.alias,
+        categoria: producto.categoria,
+        costo: producto.costo,
+        precioVenta: producto.precioVenta,
+        precioVigente: precioVigente(lotes, producto.id, producto.precioVenta),
+        porcentajeAumento: producto.porcentajeAumento,
+        stockActual: producto.stockActual,
+        activo: producto.activo === true
+      };
+    });
+    return { ok: true, mensaje: '', productos: productos };
   } catch (error) {
     return { ok: false, mensaje: error.message, productos: [] };
   }
@@ -473,7 +535,7 @@ function apiRegistrarPerdida(token, productoId, cantidad, motivo) {
     if (!producto || producto.activo !== true) {
       return { ok: false, mensaje: 'El producto no existe o esta inactivo', productos: [] };
     }
-    const consumo = consumirDeLotes(leerTodo(libro, 'Lotes'), producto.id, Number(cantidad), producto.nombre);
+    const consumo = consumirDeLotes(leerTodo(libro, 'Lotes'), producto.id, Number(cantidad), producto.nombre, producto.precioVenta);
     const perdida = crearPerdida({
       id: nuevoId(),
       producto: producto,
@@ -615,11 +677,19 @@ function apiConfirmarIngresoInventario(token, lineas) {
           stockActual: Number(linea.cantidad), activo: true, porcentajeAumento: 0
         });
         linea.productoId = id;
+        linea.precioVenta = Number(linea.precioVenta);
       } else {
         const producto = productos.filter(function (p) { return p.id === linea.productoId; })[0];
+        const precioAnterior = Number(producto.precioVenta);
+        linea.precioVenta = Number(linea.precioVenta) || precioAnterior;
+        // los lotes viejos sin precio propio conservan el precio que tenian
+        guardarPrecioDeLotes(libro, fijarPrecioEnLotesSinPrecio(leerTodo(libro, 'Lotes'), producto.id, precioAnterior));
+        producto.stockActual = producto.stockActual + Number(linea.cantidad);
+        producto.precioVenta = linea.precioVenta;
         actualizarPorId(libro, 'Productos', producto.id, {
-          stockActual: producto.stockActual + Number(linea.cantidad),
-          costo: Number(linea.costoUnitario)
+          stockActual: producto.stockActual,
+          costo: Number(linea.costoUnitario),
+          precioVenta: producto.precioVenta
         });
       }
       const loteId = nuevoId();
@@ -628,7 +698,8 @@ function apiConfirmarIngresoInventario(token, lineas) {
         productoId: linea.productoId,
         fecha: ahoraIso(),
         cantidad: Number(linea.cantidad),
-        costoUnitario: Number(linea.costoUnitario)
+        costoUnitario: Number(linea.costoUnitario),
+        precioVenta: linea.precioVenta
       }));
       linea.loteId = loteId;
     });
@@ -642,7 +713,7 @@ function apiConfirmarIngresoInventario(token, lineas) {
   }
 }
 
-function apiAjustarStockSubir(token, productoId, cantidad, costoUnitario) {
+function apiAjustarStockSubir(token, productoId, cantidad, costoUnitario, precioVenta) {
   try {
     exigirAdmin(token);
     const producto = leerTodo(obtenerLibro(), 'Productos')
@@ -655,6 +726,7 @@ function apiAjustarStockSubir(token, productoId, cantidad, costoUnitario) {
       productoId: producto.id,
       cantidad: Number(cantidad),
       costoUnitario: Number(costoUnitario),
+      precioVenta: Number(precioVenta) || '',
       esNuevo: false
     }]);
   } catch (error) {
@@ -721,29 +793,64 @@ function apiAnularIngresoInventario(token, ingresoId, motivo) {
 }
 
 function apiRegistrarGastoCompartido(token, datos) {
+  const bloqueo = LockService.getScriptLock();
+  bloqueo.waitLock(30000);
   try {
     exigirAdmin(token);
     const libro = obtenerLibro();
+    let producto = null;
+    let consumo = null;
+    const cantidad = Number(datos.cantidad);
+    if (datos.productoId) {
+      const productos = leerTodo(libro, 'Productos');
+      for (let i = 0; i < productos.length; i++) {
+        if (productos[i].id === datos.productoId) {
+          producto = productos[i];
+          break;
+        }
+      }
+      if (!producto || producto.activo !== true) {
+        return { ok: false, mensaje: 'El producto no existe o esta inactivo', productos: [] };
+      }
+      consumo = consumirDeLotes(leerTodo(libro, 'Lotes'), producto.id, cantidad, producto.nombre, producto.precioVenta);
+    }
     const gasto = crearGastoCompartido({
       id: nuevoId(),
       motivo: String(datos.motivo || '').trim(),
       descripcion: datos.descripcion,
       valorTotal: Number(datos.valorTotal),
       participantes: datos.participantes || [],
-      fecha: ahoraIso()
+      fecha: ahoraIso(),
+      producto: producto,
+      cantidad: cantidad,
+      consumo: consumo
     });
-    agregarFila(libro, 'GastosCompartidos', gasto);
+    if (producto) {
+      const actualizado = descontarStock(producto, cantidad);
+      agregarFila(libro, 'GastosCompartidos', gasto);
+      consumo.lotesActualizados.forEach(function (lote) {
+        actualizarPorId(libro, 'Lotes', lote.id, { cantidadRestante: lote.cantidadRestante });
+      });
+      actualizarPorId(libro, 'Productos', producto.id, { stockActual: actualizado.stockActual });
+    } else {
+      agregarFila(libro, 'GastosCompartidos', gasto);
+    }
     const cuotas = cuotasDeGasto(gasto);
     return {
       ok: true,
-      mensaje: 'Gasto repartido entre ' + cuotas.length + ' personas'
+      mensaje: 'Gasto de ' + gasto.valorTotal + ' repartido entre ' + cuotas.length + ' personas',
+      productos: productosVisibles()
     };
   } catch (error) {
-    return { ok: false, mensaje: error.message };
+    return { ok: false, mensaje: error.message, productos: [] };
+  } finally {
+    bloqueo.releaseLock();
   }
 }
 
 function apiAnularGastoCompartido(token, gastoId, motivo) {
+  const bloqueo = LockService.getScriptLock();
+  bloqueo.waitLock(30000);
   try {
     const admin = exigirAdmin(token);
     const libro = obtenerLibro();
@@ -769,9 +876,26 @@ function apiAnularGastoCompartido(token, gastoId, motivo) {
       anuladoFecha: anulado.anuladoFecha,
       anuladoMotivo: anulado.anuladoMotivo
     });
+    if (original.productoId && original.lotesConsumidos) {
+      devolverALotes(leerTodo(libro, 'Lotes'), JSON.parse(original.lotesConsumidos)).forEach(function (lote) {
+        actualizarPorId(libro, 'Lotes', lote.id, { cantidadRestante: lote.cantidadRestante });
+      });
+      const productos = leerTodo(libro, 'Productos');
+      for (let j = 0; j < productos.length; j++) {
+        if (productos[j].id === original.productoId) {
+          actualizarPorId(libro, 'Productos', original.productoId, {
+            stockActual: productos[j].stockActual + Number(original.cantidad)
+          });
+          break;
+        }
+      }
+      return { ok: true, mensaje: 'Gasto anulado, cuotas retiradas y stock devuelto' };
+    }
     return { ok: true, mensaje: 'Gasto anulado y cuotas retiradas de los saldos' };
   } catch (error) {
     return { ok: false, mensaje: error.message };
+  } finally {
+    bloqueo.releaseLock();
   }
 }
 
@@ -927,7 +1051,9 @@ function apiListarMovimientosRecientes(token, usuarioId) {
           id: registro.id, tipo: 'gasto', fecha: registro.fecha,
           usuarioId: participanteId,
           quien: nombrePorId[participanteId] || participanteId,
-          concepto: 'Gasto ' + registro.motivo + (registro.descripcion ? ': ' + registro.descripcion : ''),
+          concepto: 'Gasto ' + registro.motivo +
+            (registro.productoNombre ? ' (' + registro.productoNombre + ' x' + registro.cantidad + ')' : '') +
+            (registro.descripcion ? ': ' + registro.descripcion : ''),
           valor: partes[indice], estado: registro.estado
         });
       });

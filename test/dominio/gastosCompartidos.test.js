@@ -64,6 +64,56 @@ test('cuotasDeGasto genera una cuota por participante', () => {
   assert.strictEqual(cuotas[0].descripcion, 'Torta de Ana');
 });
 
+const PRODUCTO = { id: 'p1', nombre: 'Gaseosa', precioVenta: 2500, stockActual: 10, activo: true };
+const CONSUMO = {
+  consumos: [{ loteId: 'l1', cantidad: 3, costoUnitario: 1800 }],
+  costoTotal: 5400,
+  costoUnitarioPromedio: 1800,
+  lotesActualizados: []
+};
+const CON_PRODUCTO = Object.assign({}, BASE, {
+  valorTotal: undefined, producto: PRODUCTO, cantidad: 3, consumo: CONSUMO
+});
+
+test('crearGastoCompartido sin producto deja los campos de producto vacios', () => {
+  const gasto = crearGastoCompartido(BASE);
+  assert.strictEqual(gasto.productoId, '');
+  assert.strictEqual(gasto.productoNombre, '');
+  assert.strictEqual(gasto.cantidad, '');
+  assert.strictEqual(gasto.lotesConsumidos, '');
+});
+
+test('crearGastoCompartido con producto usa el costo de los lotes como valor total', () => {
+  const gasto = crearGastoCompartido(CON_PRODUCTO);
+  assert.strictEqual(gasto.valorTotal, 5400);
+  assert.strictEqual(gasto.productoId, 'p1');
+  assert.strictEqual(gasto.productoNombre, 'Gaseosa');
+  assert.strictEqual(gasto.cantidad, 3);
+  assert.deepStrictEqual(JSON.parse(gasto.lotesConsumidos), CONSUMO.consumos);
+});
+
+test('crearGastoCompartido con producto ignora el valor manual', () => {
+  const gasto = crearGastoCompartido(Object.assign({}, CON_PRODUCTO, { valorTotal: 99999 }));
+  assert.strictEqual(gasto.valorTotal, 5400);
+});
+
+test('crearGastoCompartido con producto exige el consumo de lotes', () => {
+  assert.throws(() => crearGastoCompartido(Object.assign({}, CON_PRODUCTO, { consumo: null })), /lote/i);
+});
+
+test('crearGastoCompartido con producto rechaza cantidad invalida', () => {
+  assert.throws(() => crearGastoCompartido(Object.assign({}, CON_PRODUCTO, { cantidad: 0 })), /cantidad/i);
+});
+
+test('crearGastoCompartido con producto rechaza cuando no alcanza el stock', () => {
+  assert.throws(() => crearGastoCompartido(Object.assign({}, CON_PRODUCTO, { cantidad: 11 })), /stock/i);
+});
+
+test('cuotasDeGasto reparte el costo del producto entre los participantes', () => {
+  const cuotas = cuotasDeGasto(crearGastoCompartido(CON_PRODUCTO));
+  assert.deepStrictEqual(cuotas.map(c => c.valor), [1800, 1800, 1800]);
+});
+
 test('cuotasDeGasto no genera nada para un gasto anulado', () => {
   const anulado = Object.assign({}, crearGastoCompartido(BASE), { estado: 'anulado' });
   assert.deepStrictEqual(cuotasDeGasto(anulado), []);

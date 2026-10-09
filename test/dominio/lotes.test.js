@@ -1,6 +1,14 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const { crearLote, consumirDeLotes, devolverALotes, puedeAnularseLote } = require('../../src/dominio/lotes.js');
+const {
+  crearLote,
+  consumirDeLotes,
+  devolverALotes,
+  puedeAnularseLote,
+  precioVigente,
+  fijarPrecioEnLotesSinPrecio,
+  asignarPrecioALotesConStock
+} = require('../../src/dominio/lotes.js');
 
 function lote(cambios) {
   return Object.assign({
@@ -35,7 +43,7 @@ test('consumirDeLotes toma del lote mas antiguo primero', () => {
     lote({ id: 'viejo', fecha: '2026-09-01T10:00:00.000Z', cantidadInicial: 3, cantidadRestante: 3, costoUnitario: 2925 })
   ];
   const resultado = consumirDeLotes(lotes, 'p1', 2, 'Quatro');
-  assert.deepStrictEqual(resultado.consumos, [{ loteId: 'viejo', cantidad: 2, costoUnitario: 2925 }]);
+  assert.deepStrictEqual(resultado.consumos, [{ loteId: 'viejo', cantidad: 2, costoUnitario: 2925, precioVenta: 0 }]);
   assert.strictEqual(resultado.costoTotal, 5850);
   assert.strictEqual(resultado.costoUnitarioPromedio, 2925);
   assert.strictEqual(resultado.lotesActualizados.length, 1);
@@ -50,8 +58,8 @@ test('consumirDeLotes cruza al siguiente lote cuando el mas viejo no alcanza', (
   ];
   const resultado = consumirDeLotes(lotes, 'p1', 5, 'Quatro');
   assert.deepStrictEqual(resultado.consumos, [
-    { loteId: 'viejo', cantidad: 2, costoUnitario: 2925 },
-    { loteId: 'nuevo', cantidad: 3, costoUnitario: 3000 }
+    { loteId: 'viejo', cantidad: 2, costoUnitario: 2925, precioVenta: 0 },
+    { loteId: 'nuevo', cantidad: 3, costoUnitario: 3000, precioVenta: 0 }
   ]);
   assert.strictEqual(resultado.costoTotal, 14850);
   assert.strictEqual(resultado.costoUnitarioPromedio, 2970);
@@ -78,7 +86,7 @@ test('consumirDeLotes ignora lotes de otro producto, anulados o agotados', () =>
     lote({ id: 'bueno', fecha: '2026-09-04T10:00:00.000Z', cantidadInicial: 5, cantidadRestante: 5, costoUnitario: 1000 })
   ];
   const resultado = consumirDeLotes(lotes, 'p1', 2, 'Cafe');
-  assert.deepStrictEqual(resultado.consumos, [{ loteId: 'bueno', cantidad: 2, costoUnitario: 1000 }]);
+  assert.deepStrictEqual(resultado.consumos, [{ loteId: 'bueno', cantidad: 2, costoUnitario: 1000, precioVenta: 0 }]);
 });
 
 test('consumirDeLotes rechaza sin tocar nada cuando no alcanza el stock', () => {
@@ -135,4 +143,79 @@ test('puedeAnularseLote solo acepta lotes intactos', () => {
   assert.strictEqual(puedeAnularseLote(lote({ cantidadInicial: 3, cantidadRestante: 3 })), true);
   assert.strictEqual(puedeAnularseLote(lote({ cantidadInicial: 3, cantidadRestante: 2 })), false);
   assert.strictEqual(puedeAnularseLote(lote({ cantidadInicial: 3, cantidadRestante: 0 })), false);
+});
+
+test('crearLote guarda el precio de venta del lote', () => {
+  const base = { id: 'l9', productoId: 'p1', fecha: '2026-10-09T10:00:00.000Z', cantidad: 6, costoUnitario: 3000 };
+  assert.strictEqual(crearLote(Object.assign({}, base, { precioVenta: 3500 })).precioVenta, 3500);
+  assert.strictEqual(crearLote(base).precioVenta, '');
+  assert.throws(() => crearLote(Object.assign({}, base, { precioVenta: 0 })), /precio/i);
+  assert.throws(() => crearLote(Object.assign({}, base, { precioVenta: 10.5 })), /precio/i);
+});
+
+test('consumirDeLotes cobra cada tramo al precio de su lote', () => {
+  const lotes = [
+    lote({ id: 'viejo', fecha: '2026-09-01T10:00:00.000Z', cantidadInicial: 3, cantidadRestante: 2, costoUnitario: 2000, precioVenta: 3000 }),
+    lote({ id: 'nuevo', fecha: '2026-10-01T10:00:00.000Z', cantidadInicial: 6, cantidadRestante: 6, costoUnitario: 2500, precioVenta: 3500 })
+  ];
+  const resultado = consumirDeLotes(lotes, 'p1', 3, 'Cocacola', 3500);
+  assert.deepStrictEqual(resultado.consumos, [
+    { loteId: 'viejo', cantidad: 2, costoUnitario: 2000, precioVenta: 3000 },
+    { loteId: 'nuevo', cantidad: 1, costoUnitario: 2500, precioVenta: 3500 }
+  ]);
+  assert.strictEqual(resultado.valorTotal, 9500);
+});
+
+test('consumirDeLotes usa el precio por defecto en lotes sin precio propio', () => {
+  const lotes = [lote({ cantidadInicial: 3, cantidadRestante: 3, precioVenta: '' })];
+  const resultado = consumirDeLotes(lotes, 'p1', 2, 'Cocacola', 3000);
+  assert.strictEqual(resultado.consumos[0].precioVenta, 3000);
+  assert.strictEqual(resultado.valorTotal, 6000);
+});
+
+test('precioVigente es el precio del lote que se vende primero', () => {
+  const lotes = [
+    lote({ id: 'nuevo', fecha: '2026-10-01T10:00:00.000Z', precioVenta: 3500 }),
+    lote({ id: 'viejo', fecha: '2026-09-01T10:00:00.000Z', precioVenta: 3000 })
+  ];
+  assert.strictEqual(precioVigente(lotes, 'p1', 3500), 3000);
+});
+
+test('precioVigente pasa al lote siguiente cuando el viejo se agota', () => {
+  const lotes = [
+    lote({ id: 'viejo', fecha: '2026-09-01T10:00:00.000Z', cantidadRestante: 0, precioVenta: 3000 }),
+    lote({ id: 'nuevo', fecha: '2026-10-01T10:00:00.000Z', precioVenta: 3500 })
+  ];
+  assert.strictEqual(precioVigente(lotes, 'p1', 3500), 3500);
+});
+
+test('precioVigente sin lotes con stock devuelve el precio del producto', () => {
+  assert.strictEqual(precioVigente([], 'p1', 3200), 3200);
+  assert.strictEqual(precioVigente([lote({ precioVenta: '' })], 'p1', 3200), 3200);
+});
+
+test('fijarPrecioEnLotesSinPrecio solo toca lotes con stock y sin precio', () => {
+  const lotes = [
+    lote({ id: 'sinPrecio', precioVenta: '' }),
+    lote({ id: 'conPrecio', precioVenta: 2800 }),
+    lote({ id: 'agotado', cantidadRestante: 0, precioVenta: '' }),
+    lote({ id: 'otro', productoId: 'p2', precioVenta: '' })
+  ];
+  const fijados = fijarPrecioEnLotesSinPrecio(lotes, 'p1', 3000);
+  assert.strictEqual(fijados.length, 1);
+  assert.strictEqual(fijados[0].id, 'sinPrecio');
+  assert.strictEqual(fijados[0].precioVenta, 3000);
+  assert.strictEqual(lotes[0].precioVenta, '');
+});
+
+test('asignarPrecioALotesConStock cambia el precio de todo el inventario restante', () => {
+  const lotes = [
+    lote({ id: 'viejo', fecha: '2026-09-01T10:00:00.000Z', precioVenta: 3000 }),
+    lote({ id: 'nuevo', fecha: '2026-10-01T10:00:00.000Z', precioVenta: 3500 }),
+    lote({ id: 'igual', fecha: '2026-10-02T10:00:00.000Z', precioVenta: 4000 }),
+    lote({ id: 'agotado', cantidadRestante: 0, precioVenta: 3000 })
+  ];
+  const cambiados = asignarPrecioALotesConStock(lotes, 'p1', 4000);
+  assert.deepStrictEqual(cambiados.map(function (l) { return l.id; }), ['viejo', 'nuevo']);
+  assert.ok(cambiados.every(function (l) { return l.precioVenta === 4000; }));
 });

@@ -39,6 +39,24 @@ test('crearTransaccionFiado arma la transaccion con el precio de venta del produ
   assert.strictEqual(transaccion.origen, 'autoregistro');
 });
 
+test('crearTransaccionFiado cobra el valor de los tramos de lotes', () => {
+  const consumo = Object.assign({}, CONSUMO, {
+    consumos: [
+      { loteId: 'viejo', cantidad: 2, costoUnitario: 800, precioVenta: 1500 },
+      { loteId: 'nuevo', cantidad: 1, costoUnitario: 900, precioVenta: 1800 }
+    ],
+    valorTotal: 4800
+  });
+  const transaccion = crearTransaccionFiado(datosBase({ cantidad: 3, consumo: consumo }));
+  assert.strictEqual(transaccion.valorTotal, 4800);
+  assert.strictEqual(transaccion.valorUnitario, 1600);
+});
+
+test('crearTransaccionFiado rechaza un valor de venta en cero', () => {
+  const consumo = Object.assign({}, CONSUMO, { valorTotal: 0 });
+  assert.throws(() => crearTransaccionFiado(datosBase({ consumo: consumo })), /precio de venta/i);
+});
+
 test('crearTransaccionFiado acepta origen admin', () => {
   assert.strictEqual(crearTransaccionFiado(datosBase({ origen: 'admin' })).origen, 'admin');
 });

@@ -1,6 +1,8 @@
 if (typeof require !== 'undefined') {
   var dineroModulo = require('./dinero.js');
   var esEnteroPositivo = dineroModulo.esEnteroPositivo;
+  var productosModulo = require('./productos.js');
+  var hayStockSuficiente = productosModulo.hayStockSuficiente;
 }
 
 const MOTIVOS_GASTO_VALIDOS = ['bienvenida', 'cumpleanos', 'otro'];
@@ -37,20 +39,44 @@ function crearGastoCompartido(datos) {
       throw new Error('Hay participantes repetidos');
     }
   }
-  if (!esEnteroPositivo(datos.valorTotal)) {
+  let valorTotal = datos.valorTotal;
+  let datosProducto = { productoId: '', productoNombre: '', cantidad: '', lotesConsumidos: '' };
+  if (datos.producto) {
+    if (!esEnteroPositivo(datos.cantidad)) {
+      throw new Error('La cantidad debe ser un entero positivo');
+    }
+    if (!hayStockSuficiente(datos.producto, datos.cantidad)) {
+      throw new Error('Stock insuficiente para ' + datos.producto.nombre);
+    }
+    if (!datos.consumo || !datos.consumo.consumos) {
+      throw new Error('Falta el consumo de lotes del gasto compartido');
+    }
+    valorTotal = datos.consumo.costoTotal;
+    datosProducto = {
+      productoId: datos.producto.id,
+      productoNombre: datos.producto.nombre,
+      cantidad: datos.cantidad,
+      lotesConsumidos: JSON.stringify(datos.consumo.consumos)
+    };
+  }
+  if (!esEnteroPositivo(valorTotal)) {
     throw new Error('El valor total debe ser un entero positivo');
   }
   return {
     id: datos.id,
     motivo: datos.motivo,
     descripcion: String(datos.descripcion || '').trim(),
-    valorTotal: datos.valorTotal,
+    valorTotal: valorTotal,
     participantes: participantes.join(','),
     fecha: datos.fecha,
     estado: 'pendiente',
     anuladoPor: '',
     anuladoFecha: '',
-    anuladoMotivo: ''
+    anuladoMotivo: '',
+    productoId: datosProducto.productoId,
+    productoNombre: datosProducto.productoNombre,
+    cantidad: datosProducto.cantidad,
+    lotesConsumidos: datosProducto.lotesConsumidos
   };
 }
 

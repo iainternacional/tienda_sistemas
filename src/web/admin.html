@@ -83,9 +83,30 @@
                 <label for="costoUnitarioAjusteCalculado">Costo por unidad (calculado)</label>
                 <input id="costoUnitarioAjusteCalculado" type="text" readonly>
               </div>
+              <div class="campo">
+                <label for="precioVentaAjuste">Precio de venta de este lote</label>
+                <input id="precioVentaAjuste" type="number" min="1" step="1">
+              </div>
+              <p class="sub campo-ancho">Las unidades que ya estaban se siguen vendiendo a su precio; este precio aplica cuando se acaben.</p>
               <button id="btnAjustarStock" class="campo-ancho">Sumar al inventario</button>
               <div id="avisoStock" class="campo-ancho"></div>
             </div>
+          </div>
+
+          <div class="bloque">
+            <h3>Administracion de productos</h3>
+            <p class="sub">Edite alias, categoria, % de aumento y precio de venta. El costo viene de los lotes (solo lectura) y el stock se ajusta con "Sumar al inventario" o "Registrar perdida". "Precio vigente" es lo que paga hoy el comprador (el lote que se vende primero). Cambiar aqui el precio de venta lo aplica a todas las unidades que quedan.</p>
+            <div class="campo">
+              <label for="filtroProductosAdmin">Buscar</label>
+              <input id="filtroProductosAdmin" type="text" placeholder="Nombre, alias o categoria" autocomplete="off">
+            </div>
+            <table>
+              <thead>
+                <tr><th>Nombre</th><th>Alias</th><th>Categoria</th><th class="valor">Costo</th><th class="valor">% aumento</th><th class="valor">Precio venta</th><th class="valor">Precio vigente</th><th class="valor">Stock</th><th>Activo</th><th></th></tr>
+              </thead>
+              <tbody id="cuerpoTablaProductosAdmin"></tbody>
+            </table>
+            <div id="avisoProductosAdmin"></div>
           </div>
 
           <div class="bloque">
@@ -101,7 +122,7 @@
             </div>
             <table id="tablaFactura" hidden>
               <thead>
-                <tr><th>Nombre</th><th>Cantidad</th><th class="valor">Costo unitario</th><th>Categoria (si es nuevo)</th><th class="valor">Precio venta (si es nuevo)</th><th></th></tr>
+                <tr><th>Nombre</th><th>Cantidad</th><th class="valor">Costo unitario</th><th>Categoria (si es nuevo)</th><th class="valor">Precio venta del lote</th><th></th></tr>
               </thead>
               <tbody id="cuerpoTablaFactura"></tbody>
             </table>
@@ -284,6 +305,14 @@
                 </select>
               </div>
               <div class="campo">
+                <label for="productoGasto">Producto (opcional)</label>
+                <select id="productoGasto"></select>
+              </div>
+              <div class="campo">
+                <label for="cantidadGasto">Cantidad</label>
+                <input id="cantidadGasto" type="number" min="1" step="1" value="1">
+              </div>
+              <div class="campo">
                 <label for="valorGasto">Valor total</label>
                 <input id="valorGasto" type="number" min="1" step="1">
               </div>
@@ -457,6 +486,18 @@
       document.getElementById('costoAjuste').addEventListener('input', calcularCostoUnitarioAjuste);
       document.getElementById('cantidadAjuste').addEventListener('input', calcularCostoUnitarioAjuste);
 
+      // Sugiere el precio de venta actual del producto; el admin puede cambiarlo para el lote nuevo.
+      function precioActualDeProducto(productoId) {
+        var producto = productosAdminCache.filter(function (p) { return p.id === productoId; })[0];
+        return producto ? producto.precioVenta : '';
+      }
+
+      function sugerirPrecioAjuste() {
+        document.getElementById('precioVentaAjuste').value = precioActualDeProducto(document.getElementById('productoAjuste').value);
+      }
+
+      document.getElementById('productoAjuste').addEventListener('change', sugerirPrecioAjuste);
+
       function llenarSelectProductos(select, productos) {
         select.innerHTML = '';
         productos.forEach(function (producto) {
@@ -477,10 +518,13 @@
         });
       }
 
-      function pintarSelectProductoReporte(productos) {
-        var select = document.getElementById('productoReporte');
+      function pintarSelectProductoOpcional(select, textoVacio, productos) {
         var valorPrevio = select.value;
-        select.innerHTML = '<option value="">Seleccione un producto</option>';
+        select.innerHTML = '';
+        var vacia = document.createElement('option');
+        vacia.value = '';
+        vacia.textContent = textoVacio;
+        select.appendChild(vacia);
         productos.slice().sort(function (a, b) {
           return a.nombre.localeCompare(b.nombre, 'es');
         }).forEach(function (producto) {
@@ -498,9 +542,104 @@
         llenarSelectProductos(document.getElementById('productoPerdida'), productos);
         llenarDatalist(document.getElementById('listaNombresProducto'), productos.map(function (p) { return p.nombre; }));
         llenarDatalist(document.getElementById('listaAliasProducto'), productos.map(function (p) { return p.alias; }).filter(function (a) { return a; }));
-        pintarSelectProductoReporte(productos);
+        pintarSelectProductoOpcional(document.getElementById('productoReporte'), 'Seleccione un producto', productos);
+        pintarSelectProductoOpcional(document.getElementById('productoGasto'), 'Ninguno (valor manual)', productos);
+        actualizarModoGasto();
         pintarTablaFiadoAdmin();
+        cargarProductosAdmin();
       }
+
+      var productosAdminCache = [];
+
+      function cargarProductosAdmin() {
+        google.script.run.withSuccessHandler(function (respuesta) {
+          if (!respuesta.ok) {
+            mostrarAviso('avisoProductosAdmin', respuesta.mensaje, true);
+            return;
+          }
+          productosAdminCache = respuesta.productos;
+          pintarTablaProductosAdmin();
+          sugerirPrecioAjuste();
+        }).apiListarProductosAdmin(token);
+      }
+
+      function pintarTablaProductosAdmin() {
+        var cuerpo = document.getElementById('cuerpoTablaProductosAdmin');
+        var filtro = document.getElementById('filtroProductosAdmin').value.trim().toLowerCase();
+        cuerpo.innerHTML = '';
+        productosAdminCache.filter(function (producto) {
+          if (!filtro) { return true; }
+          return [producto.nombre, producto.alias, producto.categoria].join(' ').toLowerCase().indexOf(filtro) !== -1;
+        }).forEach(function (producto) {
+          var fila = document.createElement('tr');
+          if (!producto.activo) { fila.style.opacity = '0.55'; }
+
+          function celdaInput(tipo, valor, atributos) {
+            var celda = document.createElement('td');
+            var input = document.createElement('input');
+            input.type = tipo;
+            input.value = valor === undefined || valor === null ? '' : valor;
+            Object.keys(atributos || {}).forEach(function (clave) { input.setAttribute(clave, atributos[clave]); });
+            celda.appendChild(input);
+            fila.appendChild(celda);
+            return input;
+          }
+
+          var inNombre = celdaInput('text', producto.nombre);
+          var inAlias = celdaInput('text', producto.alias);
+          var inCategoria = celdaInput('text', producto.categoria);
+
+          var celdaCosto = document.createElement('td');
+          celdaCosto.className = 'valor';
+          celdaCosto.textContent = pesos(producto.costo);
+          fila.appendChild(celdaCosto);
+
+          var inPorcentaje = celdaInput('number', producto.porcentajeAumento, { min: '0', step: '0.01' });
+          var inPrecio = celdaInput('number', producto.precioVenta, { min: '1', step: '1' });
+
+          var celdaVigente = document.createElement('td');
+          celdaVigente.className = 'valor';
+          celdaVigente.textContent = pesos(producto.precioVigente);
+          fila.appendChild(celdaVigente);
+
+          var celdaStock = document.createElement('td');
+          celdaStock.className = 'valor';
+          celdaStock.textContent = producto.stockActual;
+          fila.appendChild(celdaStock);
+
+          var celdaActivo = document.createElement('td');
+          var inActivo = document.createElement('input');
+          inActivo.type = 'checkbox';
+          inActivo.checked = producto.activo;
+          celdaActivo.appendChild(inActivo);
+          fila.appendChild(celdaActivo);
+
+          var celdaGuardar = document.createElement('td');
+          var botonGuardar = document.createElement('button');
+          botonGuardar.textContent = 'Guardar';
+          botonGuardar.addEventListener('click', function () {
+            botonGuardar.disabled = true;
+            google.script.run.withSuccessHandler(function (respuesta) {
+              botonGuardar.disabled = false;
+              mostrarAviso('avisoProductosAdmin', respuesta.ok ? 'Guardado: ' + inNombre.value : respuesta.mensaje, !respuesta.ok);
+              if (respuesta.ok) { pintarProductos(respuesta.productos); }
+            }).apiActualizarProducto(token, producto.id, {
+              nombre: inNombre.value,
+              alias: inAlias.value,
+              categoria: inCategoria.value,
+              porcentajeAumento: inPorcentaje.value,
+              precioVenta: inPrecio.value,
+              activo: inActivo.checked
+            });
+          });
+          celdaGuardar.appendChild(botonGuardar);
+          fila.appendChild(celdaGuardar);
+
+          cuerpo.appendChild(fila);
+        });
+      }
+
+      document.getElementById('filtroProductosAdmin').addEventListener('input', pintarTablaProductosAdmin);
 
       var lineasFiadoAdmin = [{ productoId: '', cantidad: 1 }];
 
@@ -814,7 +953,8 @@
           token,
           document.getElementById('productoAjuste').value,
           Number(document.getElementById('cantidadAjuste').value),
-          costoUnitarioAjuste()
+          costoUnitarioAjuste(),
+          Number(document.getElementById('precioVentaAjuste').value)
         );
       });
 
@@ -880,13 +1020,16 @@
         var cuerpo = document.getElementById('cuerpoTablaFactura');
         cuerpo.innerHTML = '';
         lineasFactura.forEach(function (linea, indice) {
+          if (!linea.esNuevo && !linea.precioVenta) {
+            linea.precioVenta = precioActualDeProducto(linea.productoId);
+          }
           var fila = document.createElement('tr');
           fila.innerHTML =
             '<td><input type="text" data-campo="nombre" value="' + (linea.nombre || '') + '"></td>' +
             '<td><input type="number" min="1" step="1" data-campo="cantidad" value="' + (linea.cantidad || '') + '"></td>' +
             '<td><input type="number" min="1" step="1" data-campo="costoUnitario" value="' + (linea.costoUnitario || '') + '"></td>' +
             '<td><input type="text" data-campo="categoria" value="' + (linea.categoria || '') + '" ' + (linea.esNuevo ? '' : 'hidden') + '></td>' +
-            '<td><input type="number" min="1" step="1" data-campo="precioVenta" value="' + (linea.precioVenta || '') + '" ' + (linea.esNuevo ? '' : 'hidden') + '></td>' +
+            '<td><input type="number" min="1" step="1" data-campo="precioVenta" value="' + (linea.precioVenta || '') + '"></td>' +
             '<td><button data-quitar="' + indice + '">quitar</button></td>';
           Array.prototype.forEach.call(fila.querySelectorAll('input'), function (input) {
             input.addEventListener('input', function () {
@@ -946,6 +1089,17 @@
         }).apiConfirmarIngresoInventario(token, lineasFactura);
       });
 
+      function actualizarModoGasto() {
+        var conProducto = document.getElementById('productoGasto').value !== '';
+        var valor = document.getElementById('valorGasto');
+        document.getElementById('cantidadGasto').disabled = !conProducto;
+        valor.disabled = conProducto;
+        valor.placeholder = conProducto ? 'Se calcula con el costo del lote' : '';
+        if (conProducto) { valor.value = ''; }
+      }
+
+      document.getElementById('productoGasto').addEventListener('change', actualizarModoGasto);
+
       document.getElementById('btnGasto').addEventListener('click', function () {
         var boton = this;
         var seleccionados = [];
@@ -960,12 +1114,17 @@
           if (respuesta.ok) {
             document.getElementById('descripcionGasto').value = '';
             document.getElementById('valorGasto').value = '';
+            document.getElementById('productoGasto').value = '';
+            document.getElementById('cantidadGasto').value = '1';
+            pintarProductos(respuesta.productos);
           }
         }).apiRegistrarGastoCompartido(token, {
           motivo: document.getElementById('motivoGasto').value,
           descripcion: document.getElementById('descripcionGasto').value,
           valorTotal: Number(document.getElementById('valorGasto').value),
-          participantes: seleccionados
+          participantes: seleccionados,
+          productoId: document.getElementById('productoGasto').value,
+          cantidad: Number(document.getElementById('cantidadGasto').value)
         });
       });
 

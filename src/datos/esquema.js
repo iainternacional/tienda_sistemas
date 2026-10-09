@@ -26,7 +26,8 @@ var ESQUEMA = {
   ],
   GastosCompartidos: [
     'id', 'motivo', 'descripcion', 'valorTotal', 'participantes', 'fecha', 'estado',
-    'anuladoPor', 'anuladoFecha', 'anuladoMotivo'
+    'anuladoPor', 'anuladoFecha', 'anuladoMotivo',
+    'productoId', 'productoNombre', 'cantidad', 'lotesConsumidos'
   ],
   IngresosInventario: [
     'id', 'fecha', 'admin', 'lineas', 'estado',
@@ -34,7 +35,8 @@ var ESQUEMA = {
   ],
   Lotes: [
     'id', 'productoId', 'fecha', 'cantidadInicial', 'cantidadRestante',
-    'costoUnitario', 'estado', 'anuladoPor', 'anuladoFecha', 'anuladoMotivo'
+    'costoUnitario', 'estado', 'anuladoPor', 'anuladoFecha', 'anuladoMotivo',
+    'precioVenta'
   ]
 };
 

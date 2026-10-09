@@ -5,7 +5,8 @@ const { ESQUEMA } = require('../../src/datos/esquema.js');
 test('ESQUEMA define la hoja Lotes con sus columnas en orden', () => {
   assert.deepStrictEqual(ESQUEMA.Lotes, [
     'id', 'productoId', 'fecha', 'cantidadInicial', 'cantidadRestante',
-    'costoUnitario', 'estado', 'anuladoPor', 'anuladoFecha', 'anuladoMotivo'
+    'costoUnitario', 'estado', 'anuladoPor', 'anuladoFecha', 'anuladoMotivo',
+    'precioVenta'
   ]);
 });
 

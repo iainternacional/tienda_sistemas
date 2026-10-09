@@ -140,7 +140,9 @@ function reporteGastosCompartidos(gastos) {
         descripcion: gasto.descripcion,
         valorTotal: gasto.valorTotal,
         participantes: cuotas.length,
-        valorPorPersona: cuotas.length > 0 ? cuotas[0].valor : 0
+        valorPorPersona: cuotas.length > 0 ? cuotas[0].valor : 0,
+        productoNombre: gasto.productoNombre || '',
+        cantidad: gasto.cantidad || ''
       });
     });
 

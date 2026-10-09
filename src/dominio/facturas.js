@@ -88,6 +88,12 @@ function validarLineasParaConfirmar(lineas) {
       if (!esEnteroPositivo(Number(linea.precioVenta))) {
         throw new Error('Linea ' + numero + ' (' + nombre + '): el precio de venta debe ser un entero positivo');
       }
+    } else {
+      // en un producto existente el precio es opcional: vacio conserva el precio actual
+      const precio = Number(linea.precioVenta || 0);
+      if (precio !== 0 && !esEnteroPositivo(precio)) {
+        throw new Error('Linea ' + numero + ' (' + nombre + '): el precio de venta debe ser un entero positivo');
+      }
     }
   });
 }

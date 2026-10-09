@@ -85,6 +85,16 @@ test('validarLineasParaConfirmar rechaza cantidad invalida senalando la linea', 
   assert.throws(() => validarLineasParaConfirmar([invalida]), /cantidad/i);
 });
 
+test('validarLineasParaConfirmar acepta precio nuevo o vacio en linea existente', () => {
+  assert.doesNotThrow(() => validarLineasParaConfirmar([Object.assign({}, LINEA_EXISTENTE, { precioVenta: 3500 })]));
+  assert.doesNotThrow(() => validarLineasParaConfirmar([Object.assign({}, LINEA_EXISTENTE, { precioVenta: '' })]));
+});
+
+test('validarLineasParaConfirmar rechaza precio invalido en linea existente', () => {
+  assert.throws(() => validarLineasParaConfirmar([Object.assign({}, LINEA_EXISTENTE, { precioVenta: 10.5 })]), /precio/i);
+  assert.throws(() => validarLineasParaConfirmar([Object.assign({}, LINEA_EXISTENTE, { precioVenta: -100 })]), /precio/i);
+});
+
 test('validarLineasParaConfirmar exige al menos una linea', () => {
   assert.throws(() => validarLineasParaConfirmar([]), /al menos una linea/i);
 });
