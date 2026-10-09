@@ -920,12 +920,16 @@ function apiListarMovimientosRecientes(token, usuarioId) {
     });
 
     leerTodo(libro, 'GastosCompartidos').forEach(function (registro) {
-      movimientos.push({
-        id: registro.id, tipo: 'gasto', fecha: registro.fecha,
-        usuarioId: null,
-        quien: '-',
-        concepto: 'Gasto ' + registro.motivo + (registro.descripcion ? ': ' + registro.descripcion : ''),
-        valor: registro.valorTotal, estado: registro.estado
+      const idsParticipantes = participantesDe(registro);
+      const partes = repartirEntre(registro.valorTotal, idsParticipantes.length);
+      idsParticipantes.forEach(function (participanteId, indice) {
+        movimientos.push({
+          id: registro.id, tipo: 'gasto', fecha: registro.fecha,
+          usuarioId: participanteId,
+          quien: nombrePorId[participanteId] || participanteId,
+          concepto: 'Gasto ' + registro.motivo + (registro.descripcion ? ': ' + registro.descripcion : ''),
+          valor: partes[indice], estado: registro.estado
+        });
       });
     });
 

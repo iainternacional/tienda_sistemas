@@ -361,6 +361,11 @@
               </thead>
               <tbody id="tablaInventario"></tbody>
             </table>
+            <div class="paginador">
+              <button id="btnInventarioAnterior" type="button">‹ Anterior</button>
+              <span id="paginaInventarioTexto" class="sub"></span>
+              <button id="btnInventarioSiguiente" type="button">Siguiente ›</button>
+            </div>
             <h4>Compras por producto</h4>
             <p class="sub" id="resumenCompras"></p>
             <table>
@@ -390,6 +395,9 @@
       try { token = localStorage.getItem('tokenTienda') || ''; } catch (e) { token = ''; }
       var productosCache = [];
       var usuariosCache = [];
+      var inventarioPorProducto = [];
+      var paginaInventario = 0;
+      var PRODUCTOS_POR_PAGINA_INVENTARIO = 8;
 
       function pesos(valor) {
         return '$' + Number(valor || 0).toLocaleString('es-CO');
@@ -990,6 +998,43 @@
         });
       }
 
+      function renderizarPaginaInventario() {
+        var totalPaginas = Math.max(1, Math.ceil(inventarioPorProducto.length / PRODUCTOS_POR_PAGINA_INVENTARIO));
+        if (paginaInventario >= totalPaginas) { paginaInventario = totalPaginas - 1; }
+        if (paginaInventario < 0) { paginaInventario = 0; }
+
+        var inicio = paginaInventario * PRODUCTOS_POR_PAGINA_INVENTARIO;
+        var productosPagina = inventarioPorProducto.slice(inicio, inicio + PRODUCTOS_POR_PAGINA_INVENTARIO);
+        var filasInventario = [];
+        productosPagina.forEach(function (fila) {
+          fila.lotes.forEach(function (lote, indice) {
+            filasInventario.push([
+              indice === 0 ? fila.nombre : '',
+              String(lote.cantidadRestante),
+              pesos(lote.costoUnitario),
+              pesos(lote.valor)
+            ]);
+          });
+        });
+        pintarFilas('tablaInventario', filasInventario);
+
+        document.getElementById('paginaInventarioTexto').textContent =
+          inventarioPorProducto.length === 0
+            ? 'Sin productos en inventario'
+            : 'Pagina ' + (paginaInventario + 1) + ' de ' + totalPaginas;
+        document.getElementById('btnInventarioAnterior').disabled = paginaInventario === 0;
+        document.getElementById('btnInventarioSiguiente').disabled = paginaInventario >= totalPaginas - 1;
+      }
+
+      document.getElementById('btnInventarioAnterior').addEventListener('click', function () {
+        paginaInventario -= 1;
+        renderizarPaginaInventario();
+      });
+      document.getElementById('btnInventarioSiguiente').addEventListener('click', function () {
+        paginaInventario += 1;
+        renderizarPaginaInventario();
+      });
+
       document.getElementById('btnReportes').addEventListener('click', function () {
         var boton = this;
         boton.disabled = true;
@@ -1020,18 +1065,9 @@
 
           document.getElementById('valorInventario').textContent =
             'Valor total del inventario: ' + pesos(respuesta.inventario.valorTotal);
-          var filasInventario = [];
-          respuesta.inventario.porProducto.forEach(function (fila) {
-            fila.lotes.forEach(function (lote, indice) {
-              filasInventario.push([
-                indice === 0 ? fila.nombre : '',
-                String(lote.cantidadRestante),
-                pesos(lote.costoUnitario),
-                pesos(lote.valor)
-              ]);
-            });
-          });
-          pintarFilas('tablaInventario', filasInventario);
+          inventarioPorProducto = respuesta.inventario.porProducto;
+          paginaInventario = 0;
+          renderizarPaginaInventario();
 
           if (document.getElementById('productoReporte').value) {
             document.getElementById('resumenCompras').textContent =
