@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const { calcularSaldoUsuario, desglosarSaldoUsuario } = require('../../src/dominio/saldo.js');
+const { calcularSaldoUsuario, desglosarSaldoUsuario, resumirSaldoUsuario } = require('../../src/dominio/saldo.js');
 
 const TRANSACCIONES = [
   { id: 't1', usuarioId: 'u1', productoNombre: 'Cafe', cantidad: 2, valorTotal: 3000, fecha: '2026-09-10T10:00:00.000Z', estado: 'pendiente' },
@@ -83,4 +83,17 @@ test('desglosarSaldoUsuario respeta el concepto personalizado del prestamo', () 
   const movimientos = { prestamos: [{ id: 'pr9', usuarioId: 'u1', valor: 15000, fecha: '2026-09-14T10:00:00.000Z', estado: 'pendiente', concepto: 'Saldo anterior' }] };
   const linea = desglosarSaldoUsuario(movimientos, 'u1')[0];
   assert.strictEqual(linea.concepto, 'Saldo anterior');
+});
+
+test('resumirSaldoUsuario suma todo el saldo aunque limite el desglose', () => {
+  const resumen = resumirSaldoUsuario(MOVIMIENTOS, 'u1', 2);
+  assert.strictEqual(resumen.saldo, 31000);
+  assert.strictEqual(resumen.desglose.length, 2);
+  assert.strictEqual(resumen.totalLineas, 5);
+  assert.strictEqual(resumen.desglose[0].fecha >= resumen.desglose[1].fecha, true);
+});
+
+test('resumirSaldoUsuario sin limite devuelve todo el desglose', () => {
+  const resumen = resumirSaldoUsuario(MOVIMIENTOS, 'u1', 0);
+  assert.strictEqual(resumen.desglose.length, resumen.totalLineas);
 });

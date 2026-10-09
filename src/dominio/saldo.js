@@ -86,6 +86,24 @@ function desglosarSaldoUsuario(movimientos, usuarioId) {
   });
 }
 
+// Recorre los movimientos una sola vez: el saldo siempre suma todas las lineas,
+// pero el desglose puede limitarse a las mas recientes.
+function resumirSaldoUsuario(movimientos, usuarioId, limite) {
+  const lineas = lineasDeUsuario(movimientos, usuarioId);
+  const saldo = lineas.reduce(function (total, linea) {
+    return total + linea.valorTotal;
+  }, 0);
+  lineas.sort(function (a, b) {
+    return String(b.fecha).localeCompare(String(a.fecha));
+  });
+  const hayLimite = typeof limite === 'number' && limite > 0;
+  return {
+    saldo: saldo,
+    desglose: hayLimite ? lineas.slice(0, limite) : lineas,
+    totalLineas: lineas.length
+  };
+}
+
 if (typeof module !== 'undefined') {
-  module.exports = { calcularSaldoUsuario, desglosarSaldoUsuario };
+  module.exports = { calcularSaldoUsuario, desglosarSaldoUsuario, resumirSaldoUsuario };
 }

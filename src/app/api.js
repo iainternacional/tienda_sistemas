@@ -81,14 +81,18 @@ function leerMovimientos(libro) {
   };
 }
 
-function estadoDeUsuario(usuario) {
+const LIMITE_DESGLOSE = 50;
+
+function estadoDeUsuario(usuario, verTodo) {
   const movimientos = leerMovimientos(obtenerLibro());
+  const resumen = resumirSaldoUsuario(movimientos, usuario.id, verTodo ? 0 : LIMITE_DESGLOSE);
   return {
     autenticado: true,
     nombre: usuario.nombre,
     rol: usuario.rol,
-    saldo: calcularSaldoUsuario(movimientos, usuario.id),
-    desglose: desglosarSaldoUsuario(movimientos, usuario.id),
+    saldo: resumen.saldo,
+    desglose: resumen.desglose,
+    hayMasMovimientos: resumen.totalLineas > resumen.desglose.length,
     productos: productosVisibles(),
     mensaje: ''
   };
@@ -105,7 +109,7 @@ function apiIniciarSesion(usuario, clave) {
   return { ok: true, token: token, mensaje: '' };
 }
 
-function apiObtenerEstado(token) {
+function apiObtenerEstado(token, verTodo) {
   const usuario = usuarioDeSesion(token);
   if (!usuario) {
     return {
@@ -113,7 +117,7 @@ function apiObtenerEstado(token) {
       desglose: [], productos: [], mensaje: 'Inicie sesion para continuar'
     };
   }
-  return estadoDeUsuario(usuario);
+  return estadoDeUsuario(usuario, verTodo === true);
 }
 
 function registrarFiadoSinBloqueo(libro, usuario, productoId, cantidad, origen) {
