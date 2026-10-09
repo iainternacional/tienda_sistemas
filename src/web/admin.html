@@ -4,7 +4,7 @@
     <base target="_top">
     <?!= incluir('web/estilos') ?>
   </head>
-  <body>
+  <body class="admin">
     <div id="cargando" class="tarjeta">Cargando...</div>
     <div id="sinPermiso" class="tarjeta" hidden>
       <h1>Solo para el administrador</h1>
@@ -100,12 +100,7 @@
               <label for="filtroProductosAdmin">Buscar</label>
               <input id="filtroProductosAdmin" type="text" placeholder="Nombre, alias o categoria" autocomplete="off">
             </div>
-            <table>
-              <thead>
-                <tr><th>Nombre</th><th>Alias</th><th>Categoria</th><th class="valor">Costo</th><th class="valor">% aumento</th><th class="valor">Precio venta</th><th class="valor">Precio vigente</th><th class="valor">Stock</th><th>Activo</th><th></th></tr>
-              </thead>
-              <tbody id="cuerpoTablaProductosAdmin"></tbody>
-            </table>
+            <div id="cuerpoTablaProductosAdmin" class="lista-productos"></div>
             <div id="avisoProductosAdmin"></div>
           </div>
 
@@ -571,50 +566,79 @@
           if (!filtro) { return true; }
           return [producto.nombre, producto.alias, producto.categoria].join(' ').toLowerCase().indexOf(filtro) !== -1;
         }).forEach(function (producto) {
-          var fila = document.createElement('tr');
-          if (!producto.activo) { fila.style.opacity = '0.55'; }
+          var fila = document.createElement('details');
+          fila.className = 'producto-admin' + (producto.activo ? '' : ' inactivo');
 
-          function celdaInput(tipo, valor, atributos) {
-            var celda = document.createElement('td');
+          var cabecera = document.createElement('summary');
+          var titulo = document.createElement('div');
+          titulo.className = 'pa-titulo';
+          var nombreTxt = document.createElement('strong');
+          nombreTxt.textContent = producto.nombre;
+          var categoriaTxt = document.createElement('span');
+          categoriaTxt.className = 'pa-categoria';
+          categoriaTxt.textContent = producto.categoria + (producto.activo ? '' : ' · Inactivo');
+          titulo.appendChild(nombreTxt);
+          titulo.appendChild(categoriaTxt);
+          var precioTxt = document.createElement('span');
+          precioTxt.className = 'pa-precio';
+          precioTxt.textContent = pesos(producto.precioVigente);
+          var stockTxt = document.createElement('span');
+          var stock = Number(producto.stockActual) || 0;
+          stockTxt.className = 'pa-stock' + (stock === 0 ? ' agotado' : (stock <= 3 ? ' bajo' : ''));
+          stockTxt.textContent = stock === 0 ? 'Agotado' : stock + ' u.';
+          cabecera.appendChild(titulo);
+          cabecera.appendChild(precioTxt);
+          cabecera.appendChild(stockTxt);
+          fila.appendChild(cabecera);
+
+          var formulario = document.createElement('div');
+          formulario.className = 'pa-form';
+          fila.appendChild(formulario);
+
+          function campo(etiqueta, clase) {
+            var envoltorio = document.createElement('div');
+            envoltorio.className = 'pa-campo ' + (clase || '');
+            var rotulo = document.createElement('span');
+            rotulo.className = 'pa-rotulo';
+            rotulo.textContent = etiqueta;
+            envoltorio.appendChild(rotulo);
+            formulario.appendChild(envoltorio);
+            return envoltorio;
+          }
+
+          function campoInput(etiqueta, clase, tipo, valor, atributos) {
             var input = document.createElement('input');
             input.type = tipo;
             input.value = valor === undefined || valor === null ? '' : valor;
             Object.keys(atributos || {}).forEach(function (clave) { input.setAttribute(clave, atributos[clave]); });
-            celda.appendChild(input);
-            fila.appendChild(celda);
+            campo(etiqueta, clase).appendChild(input);
             return input;
           }
 
-          var inNombre = celdaInput('text', producto.nombre);
-          var inAlias = celdaInput('text', producto.alias);
-          var inCategoria = celdaInput('text', producto.categoria);
+          var inNombre = campoInput('Nombre', 'pa-ancho', 'text', producto.nombre);
+          var inAlias = campoInput('Alias', '', 'text', producto.alias);
+          var inCategoria = campoInput('Categoria', '', 'text', producto.categoria);
+          var inPorcentaje = campoInput('% aumento', '', 'number', producto.porcentajeAumento, { min: '0', step: '0.01' });
+          var inPrecio = campoInput('Precio venta (todas las unidades)', '', 'number', producto.precioVenta, { min: '1', step: '1' });
 
-          var celdaCosto = document.createElement('td');
-          celdaCosto.className = 'valor';
-          celdaCosto.textContent = pesos(producto.costo);
-          fila.appendChild(celdaCosto);
+          var costoInfo = document.createElement('p');
+          costoInfo.className = 'pa-costo';
+          costoInfo.textContent = 'Costo (de los lotes): ' + pesos(producto.costo);
+          formulario.appendChild(costoInfo);
 
-          var inPorcentaje = celdaInput('number', producto.porcentajeAumento, { min: '0', step: '0.01' });
-          var inPrecio = celdaInput('number', producto.precioVenta, { min: '1', step: '1' });
+          var pie = document.createElement('div');
+          pie.className = 'pa-pie';
+          formulario.appendChild(pie);
 
-          var celdaVigente = document.createElement('td');
-          celdaVigente.className = 'valor';
-          celdaVigente.textContent = pesos(producto.precioVigente);
-          fila.appendChild(celdaVigente);
-
-          var celdaStock = document.createElement('td');
-          celdaStock.className = 'valor';
-          celdaStock.textContent = producto.stockActual;
-          fila.appendChild(celdaStock);
-
-          var celdaActivo = document.createElement('td');
+          var etiquetaActivo = document.createElement('label');
+          etiquetaActivo.className = 'pa-activo';
           var inActivo = document.createElement('input');
           inActivo.type = 'checkbox';
           inActivo.checked = producto.activo;
-          celdaActivo.appendChild(inActivo);
-          fila.appendChild(celdaActivo);
+          etiquetaActivo.appendChild(inActivo);
+          etiquetaActivo.appendChild(document.createTextNode(' Activo'));
+          pie.appendChild(etiquetaActivo);
 
-          var celdaGuardar = document.createElement('td');
           var botonGuardar = document.createElement('button');
           botonGuardar.textContent = 'Guardar';
           botonGuardar.addEventListener('click', function () {
@@ -632,8 +656,7 @@
               activo: inActivo.checked
             });
           });
-          celdaGuardar.appendChild(botonGuardar);
-          fila.appendChild(celdaGuardar);
+          pie.appendChild(botonGuardar);
 
           cuerpo.appendChild(fila);
         });
