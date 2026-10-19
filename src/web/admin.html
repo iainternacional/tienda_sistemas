@@ -270,15 +270,14 @@
         <div class="cuerpo">
           <div class="bloque">
             <h3>Registrar perdida</h3>
+            <table>
+              <thead>
+                <tr><th>Producto</th><th class="valor">Cantidad</th><th></th></tr>
+              </thead>
+              <tbody id="cuerpoTablaPerdida"></tbody>
+            </table>
+            <button id="btnAgregarLineaPerdida">Agregar linea</button>
             <div class="rejilla">
-              <div class="campo">
-                <label for="productoPerdida">Producto</label>
-                <select id="productoPerdida"></select>
-              </div>
-              <div class="campo">
-                <label for="cantidadPerdida">Cantidad</label>
-                <input id="cantidadPerdida" type="number" min="1" step="1" value="1">
-              </div>
               <div class="campo campo-ancho">
                 <label for="motivoPerdida">Motivo</label>
                 <input id="motivoPerdida" type="text">
@@ -364,6 +363,7 @@
               <tbody id="tablaGanancia"></tbody>
             </table>
             <h4>Cartera pendiente</h4>
+            <button id="btnDescargarCartera" type="button" style="width:auto;margin:0 0 8px;padding:6px 12px;font-size:13px">Descargar Excel (quienes deben)</button>
             <table>
               <thead>
                 <tr><th>Comprador</th><th class="valor">Saldo</th></tr>
@@ -371,9 +371,10 @@
               <tbody id="tablaCartera"></tbody>
             </table>
             <h4>Perdidas</h4>
+            <button id="btnDescargarPerdidas" type="button" style="width:auto;margin:0 0 8px;padding:6px 12px;font-size:13px">Descargar Excel (perdidas)</button>
             <table>
               <thead>
-                <tr><th>Fecha</th><th>Producto</th><th>Motivo</th><th class="valor">Valor</th></tr>
+                <tr><th>Fecha</th><th>Producto</th><th>Motivo</th><th class="valor">Costo</th><th class="valor">A precio de venta</th></tr>
               </thead>
               <tbody id="tablaPerdidas"></tbody>
             </table>
@@ -534,13 +535,13 @@
       function pintarProductos(productos) {
         productosCache = productos;
         llenarSelectProductos(document.getElementById('productoAjuste'), productos);
-        llenarSelectProductos(document.getElementById('productoPerdida'), productos);
         llenarDatalist(document.getElementById('listaNombresProducto'), productos.map(function (p) { return p.nombre; }));
         llenarDatalist(document.getElementById('listaAliasProducto'), productos.map(function (p) { return p.alias; }).filter(function (a) { return a; }));
         pintarSelectProductoOpcional(document.getElementById('productoReporte'), 'Seleccione un producto', productos);
         pintarSelectProductoOpcional(document.getElementById('productoGasto'), 'Ninguno (valor manual)', productos);
         actualizarModoGasto();
         pintarTablaFiadoAdmin();
+        pintarTablaPerdida();
         cargarProductosAdmin();
       }
 
@@ -1018,6 +1019,63 @@
         );
       });
 
+      var lineasPerdida = [{ productoId: '', cantidad: 1 }];
+
+      function pintarTablaPerdida() {
+        var cuerpo = document.getElementById('cuerpoTablaPerdida');
+        cuerpo.innerHTML = '';
+        lineasPerdida.forEach(function (linea, indice) {
+          var fila = document.createElement('tr');
+
+          var celdaProducto = document.createElement('td');
+          var select = document.createElement('select');
+          llenarSelectProductos(select, productosCache);
+          var opcionVacia = document.createElement('option');
+          opcionVacia.value = '';
+          opcionVacia.textContent = 'Seleccione un producto';
+          select.insertBefore(opcionVacia, select.firstChild);
+          select.value = linea.productoId;
+          if (select.value !== linea.productoId) { select.value = ''; linea.productoId = ''; }
+          select.addEventListener('change', function () {
+            lineasPerdida[indice].productoId = select.value;
+          });
+          celdaProducto.appendChild(select);
+
+          var celdaCantidad = document.createElement('td');
+          var inputCantidad = document.createElement('input');
+          inputCantidad.type = 'number';
+          inputCantidad.min = '1';
+          inputCantidad.step = '1';
+          inputCantidad.value = linea.cantidad;
+          inputCantidad.addEventListener('input', function () {
+            lineasPerdida[indice].cantidad = Number(inputCantidad.value);
+          });
+          celdaCantidad.appendChild(inputCantidad);
+
+          var celdaQuitar = document.createElement('td');
+          var botonQuitar = document.createElement('button');
+          botonQuitar.textContent = 'quitar';
+          botonQuitar.disabled = lineasPerdida.length === 1;
+          botonQuitar.addEventListener('click', function () {
+            if (lineasPerdida.length > 1) {
+              lineasPerdida.splice(indice, 1);
+              pintarTablaPerdida();
+            }
+          });
+          celdaQuitar.appendChild(botonQuitar);
+
+          fila.appendChild(celdaProducto);
+          fila.appendChild(celdaCantidad);
+          fila.appendChild(celdaQuitar);
+          cuerpo.appendChild(fila);
+        });
+      }
+
+      document.getElementById('btnAgregarLineaPerdida').addEventListener('click', function () {
+        lineasPerdida.push({ productoId: '', cantidad: 1 });
+        pintarTablaPerdida();
+      });
+
       document.getElementById('btnPerdida').addEventListener('click', function () {
         var boton = this;
         boton.disabled = true;
@@ -1025,14 +1083,13 @@
           boton.disabled = false;
           mostrarAviso('avisoPerdida', respuesta.mensaje, !respuesta.ok);
           if (respuesta.ok) {
-            pintarProductos(respuesta.productos);
+            lineasPerdida = [{ productoId: '', cantidad: 1 }];
             document.getElementById('motivoPerdida').value = '';
-            document.getElementById('cantidadPerdida').value = '1';
+            pintarProductos(respuesta.productos);
           }
-        }).apiRegistrarPerdida(
+        }).apiRegistrarPerdidas(
           token,
-          document.getElementById('productoPerdida').value,
-          Number(document.getElementById('cantidadPerdida').value),
+          lineasPerdida,
           document.getElementById('motivoPerdida').value
         );
       });
@@ -1165,6 +1222,49 @@
         );
       });
 
+      var ultimoReporte = null;
+
+      // CSV con BOM y ';' como separador: Excel en español lo abre directo con tildes y columnas
+      function descargarCsv(nombreArchivo, encabezados, filas) {
+        var celda = function (valor) {
+          return '"' + String(valor === undefined || valor === null ? '' : valor).replace(/"/g, '""') + '"';
+        };
+        var lineas = [encabezados].concat(filas).map(function (fila) {
+          return fila.map(celda).join(';');
+        });
+        var blob = new Blob(['﻿' + lineas.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+        var enlace = document.createElement('a');
+        enlace.href = URL.createObjectURL(blob);
+        enlace.download = nombreArchivo;
+        document.body.appendChild(enlace);
+        enlace.click();
+        document.body.removeChild(enlace);
+        setTimeout(function () { URL.revokeObjectURL(enlace.href); }, 1000);
+      }
+
+      function sufijoFecha() {
+        return new Date().toISOString().slice(0, 10);
+      }
+
+      document.getElementById('btnDescargarCartera').addEventListener('click', function () {
+        if (!ultimoReporte) { mostrarAviso('avisoReportes', 'Primero pulse "Ver reportes"', true); return; }
+        var deudores = ultimoReporte.cartera.porUsuario.filter(function (fila) { return fila.saldo > 0; });
+        var total = deudores.reduce(function (suma, fila) { return suma + fila.saldo; }, 0);
+        var filas = deudores.map(function (fila) { return [fila.nombre, fila.saldo]; });
+        filas.push(['TOTAL', total]);
+        descargarCsv('quienes-deben-' + sufijoFecha() + '.csv', ['Comprador', 'Saldo'], filas);
+      });
+
+      document.getElementById('btnDescargarPerdidas').addEventListener('click', function () {
+        if (!ultimoReporte) { mostrarAviso('avisoReportes', 'Primero pulse "Ver reportes"', true); return; }
+        var lineas = ultimoReporte.perdidas.lineas;
+        var filas = lineas.map(function (fila) {
+          return [String(fila.fecha).slice(0, 10), fila.producto, fila.cantidad, fila.motivo, fila.valor, fila.valorVenta];
+        });
+        filas.push(['TOTAL', '', '', '', ultimoReporte.perdidas.total, ultimoReporte.perdidas.totalVenta]);
+        descargarCsv('perdidas-' + sufijoFecha() + '.csv', ['Fecha', 'Producto', 'Cantidad', 'Motivo', 'Costo', 'Valor a precio de venta'], filas);
+      });
+
       function pintarFilas(idCuerpo, filas) {
         var cuerpo = document.getElementById(idCuerpo);
         cuerpo.innerHTML = '';
@@ -1227,9 +1327,14 @@
             return;
           }
           mostrarAviso('avisoReportes', '', false);
-          var resumen = 'Ganancia: ' + pesos(respuesta.ganancia.total) +
-            ' · Perdidas: ' + pesos(respuesta.perdidas.total) +
-            ' · Cartera: ' + pesos(respuesta.cartera.total);
+          ultimoReporte = respuesta;
+          var resumen ='Ganancia: ' + pesos(respuesta.ganancia.total) +
+            ' · Perdidas: ' + pesos(respuesta.perdidas.total);
+          // las perdidas no son de un comprador, asi que con ese filtro la resta no tendria sentido
+          if (!document.getElementById('compradorReporte').value) {
+            resumen += ' · Ganancia neta: ' + pesos(respuesta.ganancia.total - respuesta.perdidas.total);
+          }
+          resumen += ' · Cartera: ' + pesos(respuesta.cartera.total);
           if (respuesta.ganancia.estimado) {
             resumen += ' (la ganancia incluye ventas sin costo historico, calculadas con el costo actual)';
           }
@@ -1242,7 +1347,7 @@
             return [fila.nombre, pesos(fila.saldo)];
           }));
           pintarFilas('tablaPerdidas', respuesta.perdidas.lineas.map(function (fila) {
-            return [fechaCorta(fila.fecha), fila.producto, fila.motivo, pesos(fila.valor)];
+            return [fechaCorta(fila.fecha), fila.producto, fila.motivo, pesos(fila.valor), pesos(fila.valorVenta)];
           }));
 
           document.getElementById('valorInventario').textContent =

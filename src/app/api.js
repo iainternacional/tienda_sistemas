@@ -522,39 +522,59 @@ function apiAnularPrestamo(token, prestamoId, motivo) {
   }
 }
 
-function apiRegistrarPerdida(token, productoId, cantidad, motivo) {
+function registrarPerdidaSinBloqueo(libro, producto, cantidad, motivo) {
+  const consumo = consumirDeLotes(leerTodo(libro, 'Lotes'), producto.id, cantidad, producto.nombre, producto.precioVenta);
+  const perdida = crearPerdida({
+    id: nuevoId(),
+    producto: producto,
+    cantidad: cantidad,
+    motivo: motivo,
+    fecha: ahoraIso(),
+    consumo: consumo
+  });
+  const actualizado = descontarStock(producto, cantidad);
+  agregarFila(libro, 'Perdidas', perdida);
+  consumo.lotesActualizados.forEach(function (lote) {
+    actualizarPorId(libro, 'Lotes', lote.id, { cantidadRestante: lote.cantidadRestante });
+  });
+  actualizarPorId(libro, 'Productos', producto.id, { stockActual: actualizado.stockActual });
+  return perdida;
+}
+
+function apiRegistrarPerdidas(token, lineas, motivo) {
   const bloqueo = LockService.getScriptLock();
   bloqueo.waitLock(30000);
   try {
     exigirAdmin(token);
+    validarLineasFiado(lineas);
+    if (String(motivo || '').trim() === '') {
+      throw new Error('El motivo es obligatorio');
+    }
     const libro = obtenerLibro();
     const productos = leerTodo(libro, 'Productos');
-    let producto = null;
-    for (let i = 0; i < productos.length; i++) {
-      if (productos[i].id === productoId) {
-        producto = productos[i];
-        break;
+    const cantidadesPorProducto = {};
+    lineas.forEach(function (linea) {
+      cantidadesPorProducto[linea.productoId] = (cantidadesPorProducto[linea.productoId] || 0) + Number(linea.cantidad);
+    });
+    Object.keys(cantidadesPorProducto).forEach(function (productoId) {
+      const producto = productos.filter(function (p) { return p.id === productoId; })[0];
+      if (!producto || producto.activo !== true) {
+        throw new Error('El producto no existe o esta inactivo');
       }
-    }
-    if (!producto || producto.activo !== true) {
-      return { ok: false, mensaje: 'El producto no existe o esta inactivo', productos: [] };
-    }
-    const consumo = consumirDeLotes(leerTodo(libro, 'Lotes'), producto.id, Number(cantidad), producto.nombre, producto.precioVenta);
-    const perdida = crearPerdida({
-      id: nuevoId(),
-      producto: producto,
-      cantidad: Number(cantidad),
-      motivo: motivo,
-      fecha: ahoraIso(),
-      consumo: consumo
+      if (!hayStockSuficiente(producto, cantidadesPorProducto[productoId])) {
+        throw new Error('Stock insuficiente para ' + producto.nombre);
+      }
     });
-    const actualizado = descontarStock(producto, Number(cantidad));
-    agregarFila(libro, 'Perdidas', perdida);
-    consumo.lotesActualizados.forEach(function (lote) {
-      actualizarPorId(libro, 'Lotes', lote.id, { cantidadRestante: lote.cantidadRestante });
+    const perdidas = lineas.map(function (linea) {
+      const producto = leerTodo(libro, 'Productos').filter(function (p) { return p.id === linea.productoId; })[0];
+      return registrarPerdidaSinBloqueo(libro, producto, Number(linea.cantidad), motivo);
     });
-    actualizarPorId(libro, 'Productos', producto.id, { stockActual: actualizado.stockActual });
-    return { ok: true, mensaje: 'Perdida registrada: ' + perdida.cantidad + ' x ' + perdida.productoNombre, productos: productosVisibles() };
+    const totalUnidades = perdidas.reduce(function (suma, p) { return suma + p.cantidad; }, 0);
+    return {
+      ok: true,
+      mensaje: 'Perdida registrada: ' + perdidas.length + ' producto(s), ' + totalUnidades + ' unidad(es)',
+      productos: productosVisibles()
+    };
   } catch (error) {
     return { ok: false, mensaje: error.message, productos: [] };
   } finally {

@@ -79,6 +79,25 @@ test('reportePerdidas respeta el rango de fechas', () => {
   assert.strictEqual(reportePerdidas(PERDIDAS, '2026-09-10', '2026-09-10').total, 1600);
 });
 
+test('reportePerdidas calcula el valor de venta desde los lotes consumidos', () => {
+  const consumos = JSON.stringify([
+    { loteId: 'l1', cantidad: 1, costoUnitario: 800, precioVenta: 1000 },
+    { loteId: 'l2', cantidad: 2, costoUnitario: 900, precioVenta: 1200 }
+  ]);
+  const reporte = reportePerdidas(
+    [{ id: 'pe9', productoNombre: 'Cafe', cantidad: 3, motivo: 'x', valor: 2600, lotesConsumidos: consumos, fecha: '2026-09-10T10:00:00.000Z', estado: 'pendiente' }],
+    '2026-09-01', '2026-09-30'
+  );
+  assert.strictEqual(reporte.lineas[0].valorVenta, 3400);
+  assert.strictEqual(reporte.totalVenta, 3400);
+  assert.strictEqual(reporte.total, 2600);
+});
+
+test('reportePerdidas usa el valor guardado si no hay lotes consumidos', () => {
+  const reporte = reportePerdidas(PERDIDAS, '2026-09-01', '2026-09-30');
+  assert.strictEqual(reporte.totalVenta, 2800);
+});
+
 const USUARIOS = [
   { id: 'u1', nombre: 'Ana', activo: true },
   { id: 'u2', nombre: 'Beto', activo: true },

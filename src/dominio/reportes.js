@@ -72,6 +72,24 @@ function reporteGanancia(transacciones, productos, desde, hasta, usuarioId) {
   };
 }
 
+// Lo que habria pagado el comprador por lo perdido: cantidad x precio de venta de cada lote.
+// Si el consumo no trae precio (perdidas viejas), usa el costo; sin consumo, el valor guardado.
+function valorVentaDePerdida(perdida) {
+  let consumos = [];
+  try {
+    consumos = perdida.lotesConsumidos ? JSON.parse(perdida.lotesConsumidos) : [];
+  } catch (error) {
+    consumos = [];
+  }
+  if (!Array.isArray(consumos) || consumos.length === 0) {
+    return perdida.valor;
+  }
+  return consumos.reduce(function (suma, consumo) {
+    const precio = Number(consumo.precioVenta) || Number(consumo.costoUnitario) || 0;
+    return suma + Number(consumo.cantidad) * precio;
+  }, 0);
+}
+
 function reportePerdidas(perdidas, desde, hasta) {
   const lineas = (perdidas || [])
     .filter(function (perdida) {
@@ -84,13 +102,15 @@ function reportePerdidas(perdidas, desde, hasta) {
         producto: perdida.productoNombre,
         cantidad: perdida.cantidad,
         motivo: perdida.motivo,
-        valor: perdida.valor
+        valor: perdida.valor,
+        valorVenta: valorVentaDePerdida(perdida)
       };
     })
     .sort(function (a, b) { return String(b.fecha).localeCompare(String(a.fecha)); });
 
   return {
     total: lineas.reduce(function (suma, linea) { return suma + linea.valor; }, 0),
+    totalVenta: lineas.reduce(function (suma, linea) { return suma + linea.valorVenta; }, 0),
     lineas: lineas
   };
 }
