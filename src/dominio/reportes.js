@@ -103,7 +103,8 @@ function reportePerdidas(perdidas, desde, hasta) {
         cantidad: perdida.cantidad,
         motivo: perdida.motivo,
         valor: perdida.valor,
-        valorVenta: valorVentaDePerdida(perdida)
+        valorVenta: valorVentaDePerdida(perdida),
+        cargada: String(perdida.gastoId || '').trim() !== ''
       };
     })
     .sort(function (a, b) { return String(b.fecha).localeCompare(String(a.fecha)); });

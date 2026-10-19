@@ -15,9 +15,10 @@ test('lotesConsumidos va al final de Transacciones', () => {
   assert.strictEqual(columnas[columnas.length - 1], 'lotesConsumidos');
 });
 
-test('lotesConsumidos va al final de Perdidas', () => {
+test('lotesConsumidos sigue en Perdidas y gastoId va al final', () => {
   const columnas = ESQUEMA.Perdidas;
-  assert.strictEqual(columnas[columnas.length - 1], 'lotesConsumidos');
+  assert.strictEqual(columnas[columnas.length - 2], 'lotesConsumidos');
+  assert.strictEqual(columnas[columnas.length - 1], 'gastoId');
 });
 
 test('las columnas viejas de Transacciones conservan su posicion', () => {

@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const { crearPerdida } = require('../../src/dominio/perdidas.js');
+const { crearPerdida, estaCargada, perdidasSinCargar, seleccionarPerdidasACargar } = require('../../src/dominio/perdidas.js');
 
 const PRODUCTO = { id: 'p1', nombre: 'Cafe', costo: 800, precioVenta: 1500, stockActual: 10, activo: true };
 const CONSUMO = {
@@ -58,4 +58,47 @@ test('crearPerdida rechaza cuando no alcanza el stock', () => {
 
 test('crearPerdida exige producto', () => {
   assert.throws(() => crearPerdida(Object.assign({}, BASE, { producto: null })), /producto/i);
+});
+
+test('crearPerdida deja la perdida sin cargar a ningun gasto', () => {
+  const perdida = crearPerdida(BASE);
+  assert.strictEqual(perdida.gastoId, '');
+  assert.strictEqual(estaCargada(perdida), false);
+});
+
+const REGISTROS = [
+  { id: 'a', valor: 1000, estado: 'pendiente', gastoId: '' },
+  { id: 'b', valor: 2500, estado: 'pendiente' },
+  { id: 'c', valor: 4000, estado: 'anulado', gastoId: '' },
+  { id: 'd', valor: 3000, estado: 'pendiente', gastoId: 'g1' }
+];
+
+test('perdidasSinCargar excluye las anuladas y las ya cargadas', () => {
+  assert.deepStrictEqual(perdidasSinCargar(REGISTROS).map(p => p.id), ['a', 'b']);
+});
+
+test('seleccionarPerdidasACargar suma el costo de lo elegido', () => {
+  const seleccion = seleccionarPerdidasACargar(REGISTROS, ['a', 'b']);
+  assert.strictEqual(seleccion.total, 3500);
+  assert.strictEqual(seleccion.perdidas.length, 2);
+});
+
+test('seleccionarPerdidasACargar exige al menos una perdida', () => {
+  assert.throws(() => seleccionarPerdidasACargar(REGISTROS, []), /al menos una/i);
+});
+
+test('seleccionarPerdidasACargar rechaza una perdida inexistente', () => {
+  assert.throws(() => seleccionarPerdidasACargar(REGISTROS, ['a', 'zzz']), /No se encontro/i);
+});
+
+test('seleccionarPerdidasACargar rechaza una perdida anulada', () => {
+  assert.throws(() => seleccionarPerdidasACargar(REGISTROS, ['c']), /anulada/i);
+});
+
+test('seleccionarPerdidasACargar rechaza una perdida ya cargada', () => {
+  assert.throws(() => seleccionarPerdidasACargar(REGISTROS, ['a', 'd']), /ya fue cargada/i);
+});
+
+test('seleccionarPerdidasACargar rechaza perdidas repetidas', () => {
+  assert.throws(() => seleccionarPerdidasACargar(REGISTROS, ['a', 'a']), /repetidas/i);
 });

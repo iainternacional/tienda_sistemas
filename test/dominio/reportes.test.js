@@ -93,6 +93,15 @@ test('reportePerdidas calcula el valor de venta desde los lotes consumidos', () 
   assert.strictEqual(reporte.total, 2600);
 });
 
+test('reportePerdidas marca cuales perdidas ya se cargaron a un gasto', () => {
+  const reporte = reportePerdidas([
+    { id: 'pe1', productoNombre: 'Cafe', cantidad: 1, motivo: 'x', valor: 800, gastoId: 'g1', fecha: '2026-09-10T10:00:00.000Z', estado: 'pendiente' },
+    { id: 'pe2', productoNombre: 'Cafe', cantidad: 1, motivo: 'x', valor: 800, fecha: '2026-09-11T10:00:00.000Z', estado: 'pendiente' }
+  ], '2026-09-01', '2026-09-30');
+  assert.strictEqual(reporte.lineas.find(l => l.id === 'pe1').cargada, true);
+  assert.strictEqual(reporte.lineas.find(l => l.id === 'pe2').cargada, false);
+});
+
 test('reportePerdidas usa el valor guardado si no hay lotes consumidos', () => {
   const reporte = reportePerdidas(PERDIDAS, '2026-09-01', '2026-09-30');
   assert.strictEqual(reporte.totalVenta, 2800);

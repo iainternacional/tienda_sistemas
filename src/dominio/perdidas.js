@@ -36,10 +36,50 @@ function crearPerdida(datos) {
     anuladoPor: '',
     anuladoFecha: '',
     anuladoMotivo: '',
-    lotesConsumidos: JSON.stringify(datos.consumo.consumos)
+    lotesConsumidos: JSON.stringify(datos.consumo.consumos),
+    gastoId: ''
+  };
+}
+
+function estaCargada(perdida) {
+  return String(perdida.gastoId || '').trim() !== '';
+}
+
+// Perdidas activas que todavia no se repartieron en un gasto compartido.
+function perdidasSinCargar(perdidas) {
+  return (perdidas || []).filter(function (perdida) {
+    return perdida.estado !== 'anulado' && !estaCargada(perdida);
+  });
+}
+
+// Valida la seleccion completa antes de tocar nada: todo o nada.
+function seleccionarPerdidasACargar(perdidas, ids) {
+  if (!Array.isArray(ids) || ids.length === 0) {
+    throw new Error('Debe elegir al menos una perdida');
+  }
+  const seleccionadas = [];
+  ids.forEach(function (id) {
+    const perdida = (perdidas || []).filter(function (p) { return p.id === id; })[0];
+    if (!perdida) {
+      throw new Error('No se encontro una de las perdidas');
+    }
+    if (perdida.estado === 'anulado') {
+      throw new Error('Una de las perdidas esta anulada');
+    }
+    if (estaCargada(perdida)) {
+      throw new Error('Una de las perdidas ya fue cargada a un gasto compartido');
+    }
+    if (seleccionadas.indexOf(perdida) !== -1) {
+      throw new Error('Hay perdidas repetidas');
+    }
+    seleccionadas.push(perdida);
+  });
+  return {
+    perdidas: seleccionadas,
+    total: seleccionadas.reduce(function (suma, perdida) { return suma + Number(perdida.valor); }, 0)
   };
 }
 
 if (typeof module !== 'undefined') {
-  module.exports = { crearPerdida };
+  module.exports = { crearPerdida, estaCargada, perdidasSinCargar, seleccionarPerdidasACargar };
 }

@@ -22,7 +22,7 @@ var ESQUEMA = {
   ],
   Perdidas: [
     'id', 'productoId', 'productoNombre', 'cantidad', 'motivo', 'valor', 'fecha', 'estado',
-    'anuladoPor', 'anuladoFecha', 'anuladoMotivo', 'lotesConsumidos'
+    'anuladoPor', 'anuladoFecha', 'anuladoMotivo', 'lotesConsumidos', 'gastoId'
   ],
   GastosCompartidos: [
     'id', 'motivo', 'descripcion', 'valorTotal', 'participantes', 'fecha', 'estado',

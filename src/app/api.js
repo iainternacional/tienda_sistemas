@@ -582,6 +582,65 @@ function apiRegistrarPerdidas(token, lineas, motivo) {
   }
 }
 
+function perdidasSinCargarParaVista(libro) {
+  return perdidasSinCargar(leerTodo(libro, 'Perdidas'))
+    .sort(function (a, b) { return String(b.fecha).localeCompare(String(a.fecha)); })
+    .map(function (perdida) {
+      return {
+        id: perdida.id,
+        fecha: perdida.fecha,
+        productoNombre: perdida.productoNombre,
+        cantidad: perdida.cantidad,
+        motivo: perdida.motivo,
+        valor: perdida.valor
+      };
+    });
+}
+
+function apiPerdidasSinCargar(token) {
+  try {
+    exigirAdmin(token);
+    return { ok: true, mensaje: '', perdidas: perdidasSinCargarParaVista(obtenerLibro()) };
+  } catch (error) {
+    return { ok: false, mensaje: error.message, perdidas: [] };
+  }
+}
+
+// Reparte el costo de las perdidas elegidas como un gasto compartido (solo monto, sin producto:
+// el stock ya se descontó al registrar la perdida) y deja cada perdida marcada con ese gasto.
+function apiCargarPerdidasAGasto(token, perdidaIds, participantes, descripcion) {
+  const bloqueo = LockService.getScriptLock();
+  bloqueo.waitLock(30000);
+  try {
+    exigirAdmin(token);
+    const libro = obtenerLibro();
+    const seleccion = seleccionarPerdidasACargar(leerTodo(libro, 'Perdidas'), perdidaIds);
+    const detalle = String(descripcion || '').trim();
+    const gasto = crearGastoCompartido({
+      id: nuevoId(),
+      motivo: 'otro',
+      descripcion: 'Perdidas (' + seleccion.perdidas.length + ')' + (detalle ? ': ' + detalle : ''),
+      valorTotal: seleccion.total,
+      participantes: participantes || [],
+      fecha: ahoraIso()
+    });
+    agregarFila(libro, 'GastosCompartidos', gasto);
+    seleccion.perdidas.forEach(function (perdida) {
+      actualizarPorId(libro, 'Perdidas', perdida.id, { gastoId: gasto.id });
+    });
+    return {
+      ok: true,
+      mensaje: 'Gasto de ' + gasto.valorTotal + ' repartido entre ' + cuotasDeGasto(gasto).length +
+        ' personas (' + seleccion.perdidas.length + ' perdida(s) cargadas)',
+      perdidas: perdidasSinCargarParaVista(libro)
+    };
+  } catch (error) {
+    return { ok: false, mensaje: error.message, perdidas: [] };
+  } finally {
+    bloqueo.releaseLock();
+  }
+}
+
 function apiAnularPerdida(token, perdidaId, motivo) {
   const bloqueo = LockService.getScriptLock();
   bloqueo.waitLock(30000);
@@ -598,6 +657,9 @@ function apiAnularPerdida(token, perdidaId, motivo) {
     }
     if (!original) {
       return { ok: false, mensaje: 'No se encontro la perdida', productos: [] };
+    }
+    if (estaCargada(original)) {
+      return { ok: false, mensaje: 'La perdida esta cargada a un gasto compartido: anule primero ese gasto', productos: [] };
     }
     const anulado = anularRegistro(original, {
       anuladoPor: admin.nombre,
@@ -899,6 +961,12 @@ function apiAnularGastoCompartido(token, gastoId, motivo) {
       anuladoPor: anulado.anuladoPor,
       anuladoFecha: anulado.anuladoFecha,
       anuladoMotivo: anulado.anuladoMotivo
+    });
+    // las perdidas que se habian repartido en este gasto quedan libres para cargarse de nuevo
+    leerTodo(libro, 'Perdidas').forEach(function (perdida) {
+      if (perdida.gastoId === gastoId) {
+        actualizarPorId(libro, 'Perdidas', perdida.id, { gastoId: '' });
+      }
     });
     if (original.productoId && original.lotesConsumidos) {
       devolverALotes(leerTodo(libro, 'Lotes'), JSON.parse(original.lotesConsumidos)).forEach(function (lote) {

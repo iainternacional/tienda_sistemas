@@ -288,6 +288,31 @@
           </div>
 
           <div class="bloque">
+            <h3>Cargar perdidas como gasto compartido</h3>
+            <p class="sub">Reparte el costo de las perdidas que elija entre varias personas. Cada perdida se carga una sola vez.</p>
+            <table>
+              <thead>
+                <tr><th></th><th>Fecha</th><th>Producto</th><th>Motivo</th><th class="valor">Costo</th></tr>
+              </thead>
+              <tbody id="cuerpoPerdidasSinCargar"></tbody>
+            </table>
+            <p id="vacioPerdidasSinCargar" class="vacio" hidden>No hay perdidas pendientes de cargar.</p>
+            <p class="sub" id="totalPerdidasSeleccionadas"></p>
+            <div class="rejilla">
+              <div class="campo campo-ancho">
+                <label for="descripcionCargaPerdidas">Descripcion (opcional)</label>
+                <input id="descripcionCargaPerdidas" type="text">
+              </div>
+              <div class="campo campo-ancho">
+                <label for="participantesPerdidas">Participantes (mantenga Ctrl para elegir varios)</label>
+                <select id="participantesPerdidas" multiple size="8"></select>
+              </div>
+              <button id="btnCargarPerdidas" class="campo-ancho">Cargar como gasto compartido</button>
+              <div id="avisoCargaPerdidas" class="campo-ancho"></div>
+            </div>
+          </div>
+
+          <div class="bloque">
             <h3>Gasto compartido</h3>
             <div class="rejilla">
               <div class="campo">
@@ -374,7 +399,7 @@
             <button id="btnDescargarPerdidas" type="button" style="width:auto;margin:0 0 8px;padding:6px 12px;font-size:13px">Descargar Excel (perdidas)</button>
             <table>
               <thead>
-                <tr><th>Fecha</th><th>Producto</th><th>Motivo</th><th class="valor">Costo</th><th class="valor">A precio de venta</th></tr>
+                <tr><th>Fecha</th><th>Producto</th><th>Motivo</th><th class="valor">Costo</th><th class="valor">A precio de venta</th><th>Cargada</th></tr>
               </thead>
               <tbody id="tablaPerdidas"></tbody>
             </table>
@@ -736,13 +761,15 @@
           });
         });
 
-        var selectParticipantes = document.getElementById('participantesGasto');
-        selectParticipantes.innerHTML = '';
-        usuarios.forEach(function (usuario) {
-          var opcion = document.createElement('option');
-          opcion.value = usuario.id;
-          opcion.textContent = usuario.nombre;
-          selectParticipantes.appendChild(opcion);
+        ['participantesGasto', 'participantesPerdidas'].forEach(function (idSelect) {
+          var selectParticipantes = document.getElementById(idSelect);
+          selectParticipantes.innerHTML = '';
+          usuarios.forEach(function (usuario) {
+            var opcion = document.createElement('option');
+            opcion.value = usuario.id;
+            opcion.textContent = usuario.nombre;
+            selectParticipantes.appendChild(opcion);
+          });
         });
 
         var selectEditar = document.getElementById('usuarioEditar');
@@ -859,6 +886,7 @@
             pintarCompradorReporte(respuesta.usuarios);
           }).apiListarUsuariosParaReportes(token);
           cargarMovimientos();
+          cargarPerdidasSinCargar();
         }).apiObtenerEstado(token);
       }
 
@@ -1085,6 +1113,7 @@
           if (respuesta.ok) {
             lineasPerdida = [{ productoId: '', cantidad: 1 }];
             document.getElementById('motivoPerdida').value = '';
+            cargarPerdidasSinCargar();
             pintarProductos(respuesta.productos);
           }
         }).apiRegistrarPerdidas(
@@ -1167,6 +1196,86 @@
             document.getElementById('fotoFactura').value = '';
           }
         }).apiConfirmarIngresoInventario(token, lineasFactura);
+      });
+
+      var perdidasPendientes = [];
+      var perdidasMarcadas = {};
+
+      function actualizarTotalPerdidasSeleccionadas() {
+        var cantidad = 0;
+        var total = 0;
+        perdidasPendientes.forEach(function (perdida) {
+          if (perdidasMarcadas[perdida.id]) { cantidad++; total += Number(perdida.valor); }
+        });
+        document.getElementById('totalPerdidasSeleccionadas').textContent =
+          perdidasPendientes.length === 0 ? '' : 'Seleccionadas: ' + cantidad + ' · Total: ' + pesos(total);
+      }
+
+      function pintarPerdidasSinCargar(lista) {
+        var previas = perdidasMarcadas;
+        perdidasPendientes = lista;
+        perdidasMarcadas = {};
+        lista.forEach(function (perdida) {
+          perdidasMarcadas[perdida.id] = !(perdida.id in previas) || previas[perdida.id];
+        });
+        var cuerpo = document.getElementById('cuerpoPerdidasSinCargar');
+        cuerpo.innerHTML = '';
+        lista.forEach(function (perdida) {
+          var fila = document.createElement('tr');
+          var celdaMarca = document.createElement('td');
+          var marca = document.createElement('input');
+          marca.type = 'checkbox';
+          marca.style.width = 'auto';
+          marca.checked = perdidasMarcadas[perdida.id];
+          marca.addEventListener('change', function () {
+            perdidasMarcadas[perdida.id] = marca.checked;
+            actualizarTotalPerdidasSeleccionadas();
+          });
+          celdaMarca.appendChild(marca);
+          fila.appendChild(celdaMarca);
+          [fechaCorta(perdida.fecha), perdida.productoNombre + ' x' + perdida.cantidad, perdida.motivo, pesos(perdida.valor)].forEach(function (texto, indice) {
+            var celda = document.createElement('td');
+            if (indice === 3) { celda.className = 'valor'; }
+            celda.textContent = texto;
+            fila.appendChild(celda);
+          });
+          cuerpo.appendChild(fila);
+        });
+        document.getElementById('vacioPerdidasSinCargar').hidden = lista.length > 0;
+        document.getElementById('btnCargarPerdidas').disabled = lista.length === 0;
+        actualizarTotalPerdidasSeleccionadas();
+      }
+
+      function cargarPerdidasSinCargar() {
+        google.script.run.withSuccessHandler(function (respuesta) {
+          if (respuesta.ok) { pintarPerdidasSinCargar(respuesta.perdidas); }
+        }).apiPerdidasSinCargar(token);
+      }
+
+      document.getElementById('btnCargarPerdidas').addEventListener('click', function () {
+        var boton = this;
+        var ids = perdidasPendientes.filter(function (perdida) { return perdidasMarcadas[perdida.id]; })
+          .map(function (perdida) { return perdida.id; });
+        var seleccionados = [];
+        var opciones = document.getElementById('participantesPerdidas').options;
+        for (var i = 0; i < opciones.length; i++) {
+          if (opciones[i].selected) { seleccionados.push(opciones[i].value); }
+        }
+        boton.disabled = true;
+        mostrarAviso('avisoCargaPerdidas', '', false);
+        google.script.run.withSuccessHandler(function (respuesta) {
+          boton.disabled = false;
+          mostrarAviso('avisoCargaPerdidas', respuesta.mensaje, !respuesta.ok);
+          if (respuesta.ok) {
+            document.getElementById('descripcionCargaPerdidas').value = '';
+            pintarPerdidasSinCargar(respuesta.perdidas);
+          }
+        }).apiCargarPerdidasAGasto(
+          token,
+          ids,
+          seleccionados,
+          document.getElementById('descripcionCargaPerdidas').value
+        );
       });
 
       function actualizarModoGasto() {
@@ -1259,10 +1368,10 @@
         if (!ultimoReporte) { mostrarAviso('avisoReportes', 'Primero pulse "Ver reportes"', true); return; }
         var lineas = ultimoReporte.perdidas.lineas;
         var filas = lineas.map(function (fila) {
-          return [String(fila.fecha).slice(0, 10), fila.producto, fila.cantidad, fila.motivo, fila.valor, fila.valorVenta];
+          return [String(fila.fecha).slice(0, 10), fila.producto, fila.cantidad, fila.motivo, fila.valor, fila.valorVenta, fila.cargada ? 'Si' : 'No'];
         });
-        filas.push(['TOTAL', '', '', '', ultimoReporte.perdidas.total, ultimoReporte.perdidas.totalVenta]);
-        descargarCsv('perdidas-' + sufijoFecha() + '.csv', ['Fecha', 'Producto', 'Cantidad', 'Motivo', 'Costo', 'Valor a precio de venta'], filas);
+        filas.push(['TOTAL', '', '', '', ultimoReporte.perdidas.total, ultimoReporte.perdidas.totalVenta, '']);
+        descargarCsv('perdidas-' + sufijoFecha() + '.csv', ['Fecha', 'Producto', 'Cantidad', 'Motivo', 'Costo', 'Valor a precio de venta', 'Cargada a gasto'], filas);
       });
 
       function pintarFilas(idCuerpo, filas) {
@@ -1347,7 +1456,7 @@
             return [fila.nombre, pesos(fila.saldo)];
           }));
           pintarFilas('tablaPerdidas', respuesta.perdidas.lineas.map(function (fila) {
-            return [fechaCorta(fila.fecha), fila.producto, fila.motivo, pesos(fila.valor), pesos(fila.valorVenta)];
+            return [fechaCorta(fila.fecha), fila.producto, fila.motivo, pesos(fila.valor), pesos(fila.valorVenta), fila.cargada ? 'Si' : 'No'];
           }));
 
           document.getElementById('valorInventario').textContent =
