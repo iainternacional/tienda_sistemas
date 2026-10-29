@@ -1020,6 +1020,76 @@ function apiRegistrarPago(token, usuarioId, valor) {
   }
 }
 
+function disponibleActual(libro) {
+  const movimientos = leerMovimientos(libro);
+  const gananciaTotal = reporteGanancia(movimientos.transacciones, leerTodo(libro, 'Productos')).total;
+  const perdidasTotal = reportePerdidas(leerTodo(libro, 'Perdidas')).total;
+  return calcularDisponible(gananciaTotal, perdidasTotal, leerTodo(libro, 'Retiros'));
+}
+
+function respuestaRetiros(libro, mensaje) {
+  return {
+    ok: true,
+    mensaje: mensaje,
+    retiros: reporteRetiros(leerTodo(libro, 'Retiros')),
+    disponible: disponibleActual(libro)
+  };
+}
+
+function apiRegistrarRetiro(token, valor, motivo) {
+  const bloqueo = LockService.getScriptLock();
+  bloqueo.waitLock(30000);
+  try {
+    const admin = exigirAdmin(token);
+    const libro = obtenerLibro();
+    const retiro = crearRetiro({
+      id: nuevoId(),
+      valor: valor,
+      motivo: motivo,
+      fecha: ahoraIso(),
+      admin: admin.nombre,
+      disponible: disponibleActual(libro)
+    });
+    agregarFila(libro, 'Retiros', retiro);
+    return respuestaRetiros(libro, 'Retiro registrado');
+  } catch (error) {
+    return { ok: false, mensaje: error.message };
+  } finally {
+    bloqueo.releaseLock();
+  }
+}
+
+function apiAnularRetiro(token, retiroId, motivo) {
+  const bloqueo = LockService.getScriptLock();
+  bloqueo.waitLock(30000);
+  try {
+    const admin = exigirAdmin(token);
+    const libro = obtenerLibro();
+    const original = leerTodo(libro, 'Retiros').filter(function (retiro) {
+      return retiro.id === retiroId;
+    })[0];
+    if (!original) {
+      return { ok: false, mensaje: 'No se encontro el retiro' };
+    }
+    const anulado = anularRegistro(original, {
+      anuladoPor: admin.nombre,
+      anuladoFecha: ahoraIso(),
+      anuladoMotivo: motivo
+    });
+    actualizarPorId(libro, 'Retiros', retiroId, {
+      estado: anulado.estado,
+      anuladoPor: anulado.anuladoPor,
+      anuladoFecha: anulado.anuladoFecha,
+      anuladoMotivo: anulado.anuladoMotivo
+    });
+    return respuestaRetiros(libro, 'Retiro anulado');
+  } catch (error) {
+    return { ok: false, mensaje: error.message };
+  } finally {
+    bloqueo.releaseLock();
+  }
+}
+
 function apiReportes(token, desde, hasta, usuarioId, productoId) {
   try {
     exigirAdmin(token);
@@ -1034,6 +1104,8 @@ function apiReportes(token, desde, hasta, usuarioId, productoId) {
       mensaje: '',
       ganancia: reporteGanancia(movimientos.transacciones, productos, desde, hasta, usuarioId),
       perdidas: reportePerdidas(perdidas, desde, hasta),
+      retiros: reporteRetiros(leerTodo(libro, 'Retiros'), desde, hasta),
+      disponible: disponibleActual(libro),
       cartera: reporteCartera(movimientos, usuarios, usuarioId),
       gastos: reporteGastosCompartidos(movimientos.gastos),
       inventario: reporteInventario(lotes, productos),
@@ -1045,6 +1117,8 @@ function apiReportes(token, desde, hasta, usuarioId, productoId) {
       mensaje: error.message,
       ganancia: { total: 0, estimado: false, porProducto: [] },
       perdidas: { total: 0, lineas: [] },
+      retiros: { total: 0, lineas: [] },
+      disponible: 0,
       cartera: { total: 0, porUsuario: [] },
       gastos: [],
       inventario: { valorTotal: 0, porProducto: [] },

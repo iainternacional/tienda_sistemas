@@ -116,6 +116,29 @@ function reportePerdidas(perdidas, desde, hasta) {
   };
 }
 
+function reporteRetiros(retiros, desde, hasta) {
+  const lineas = (retiros || [])
+    .filter(function (retiro) {
+      return dentroDelRango(retiro.fecha, desde, hasta);
+    })
+    .map(function (retiro) {
+      return {
+        id: retiro.id,
+        fecha: retiro.fecha,
+        valor: retiro.valor,
+        motivo: retiro.motivo,
+        admin: retiro.admin,
+        estado: retiro.estado
+      };
+    })
+    .sort(function (a, b) { return String(b.fecha).localeCompare(String(a.fecha)); });
+
+  return {
+    total: lineas.filter(noAnulado).reduce(function (suma, linea) { return suma + linea.valor; }, 0),
+    lineas: lineas
+  };
+}
+
 function reporteCartera(movimientos, usuarios, usuarioId) {
   const porUsuario = (usuarios || [])
     .filter(function (usuario) {
@@ -260,6 +283,7 @@ if (typeof module !== 'undefined') {
   module.exports = {
     reporteGanancia,
     reportePerdidas,
+    reporteRetiros,
     reporteCartera,
     reporteGastosCompartidos,
     reporteInventario,

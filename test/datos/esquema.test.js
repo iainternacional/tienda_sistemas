@@ -25,3 +25,8 @@ test('las columnas viejas de Transacciones conservan su posicion', () => {
   assert.strictEqual(ESQUEMA.Transacciones[0], 'id');
   assert.strictEqual(ESQUEMA.Transacciones[13], 'costoUnitario');
 });
+
+test('ESQUEMA.Retiros existe y empieza con id', () => {
+  assert.strictEqual(ESQUEMA.Retiros[0], 'id');
+  assert.ok(ESQUEMA.Retiros.includes('motivo'));
+});

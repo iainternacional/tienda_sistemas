@@ -37,6 +37,10 @@ var ESQUEMA = {
     'id', 'productoId', 'fecha', 'cantidadInicial', 'cantidadRestante',
     'costoUnitario', 'estado', 'anuladoPor', 'anuladoFecha', 'anuladoMotivo',
     'precioVenta'
+  ],
+  Retiros: [
+    'id', 'valor', 'motivo', 'fecha', 'admin', 'estado',
+    'anuladoPor', 'anuladoFecha', 'anuladoMotivo'
   ]
 };
 

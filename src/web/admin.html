@@ -403,6 +403,26 @@
               </thead>
               <tbody id="tablaPerdidas"></tbody>
             </table>
+            <h4>Retiros de ganancia</h4>
+            <p class="sub" id="resumenRetiros"></p>
+            <div class="rejilla">
+              <div class="campo">
+                <label for="valorRetiro">Valor</label>
+                <input id="valorRetiro" type="number" min="1" step="1">
+              </div>
+              <div class="campo">
+                <label for="motivoRetiro">Motivo</label>
+                <input id="motivoRetiro" type="text">
+              </div>
+              <button id="btnRegistrarRetiro" class="campo-ancho">Registrar retiro</button>
+              <div id="avisoRetiro" class="campo-ancho"></div>
+            </div>
+            <table>
+              <thead>
+                <tr><th>Fecha</th><th class="valor">Valor</th><th>Motivo</th><th>Estado</th><th></th></tr>
+              </thead>
+              <tbody id="tablaRetiros"></tbody>
+            </table>
             <h4>Inventario por lotes</h4>
             <p class="sub" id="valorInventario"></p>
             <table>
@@ -1426,6 +1446,61 @@
         renderizarPaginaInventario();
       });
 
+      function pintarRetiros(retiros, disponible) {
+        document.getElementById('resumenRetiros').textContent =
+          'Dinero disponible: ' + pesos(disponible) + ' · Retirado en el periodo: ' + pesos(retiros.total);
+        var cuerpo = document.getElementById('tablaRetiros');
+        cuerpo.innerHTML = '';
+        retiros.lineas.forEach(function (linea) {
+          var fila = document.createElement('tr');
+          [fechaCorta(linea.fecha), pesos(linea.valor), linea.motivo, linea.estado === 'anulado' ? 'Anulado' : 'Activo']
+            .forEach(function (texto, indice) {
+              var celda = document.createElement('td');
+              if (indice === 1) { celda.className = 'valor'; }
+              celda.textContent = texto;
+              fila.appendChild(celda);
+            });
+          var celdaAccion = document.createElement('td');
+          if (linea.estado !== 'anulado') {
+            var boton = document.createElement('button');
+            boton.type = 'button';
+            boton.textContent = 'Anular';
+            boton.style.cssText = 'width:auto;margin:0;padding:4px 10px;font-size:13px';
+            boton.addEventListener('click', function () {
+              var motivo = prompt('Motivo de la anulacion:');
+              if (!motivo) { return; }
+              boton.disabled = true;
+              google.script.run.withSuccessHandler(function (resultado) {
+                mostrarAviso('avisoRetiro', resultado.mensaje, !resultado.ok);
+                if (resultado.ok) { pintarRetiros(resultado.retiros, resultado.disponible); }
+                else { boton.disabled = false; }
+              }).apiAnularRetiro(token, linea.id, motivo);
+            });
+            celdaAccion.appendChild(boton);
+          }
+          fila.appendChild(celdaAccion);
+          cuerpo.appendChild(fila);
+        });
+      }
+
+      document.getElementById('btnRegistrarRetiro').addEventListener('click', function () {
+        var boton = this;
+        boton.disabled = true;
+        google.script.run.withSuccessHandler(function (respuesta) {
+          boton.disabled = false;
+          mostrarAviso('avisoRetiro', respuesta.mensaje, !respuesta.ok);
+          if (respuesta.ok) {
+            document.getElementById('valorRetiro').value = '';
+            document.getElementById('motivoRetiro').value = '';
+            pintarRetiros(respuesta.retiros, respuesta.disponible);
+          }
+        }).apiRegistrarRetiro(
+          token,
+          Number(document.getElementById('valorRetiro').value),
+          document.getElementById('motivoRetiro').value
+        );
+      });
+
       document.getElementById('btnReportes').addEventListener('click', function () {
         var boton = this;
         boton.disabled = true;
@@ -1443,6 +1518,8 @@
           if (!document.getElementById('compradorReporte').value) {
             resumen += ' · Ganancia neta: ' + pesos(respuesta.ganancia.total - respuesta.perdidas.total);
           }
+          resumen += ' · Retiros: ' + pesos(respuesta.retiros.total) +
+            ' · Dinero disponible: ' + pesos(respuesta.disponible);
           resumen += ' · Cartera: ' + pesos(respuesta.cartera.total);
           if (respuesta.ganancia.estimado) {
             resumen += ' (la ganancia incluye ventas sin costo historico, calculadas con el costo actual)';
@@ -1458,6 +1535,8 @@
           pintarFilas('tablaPerdidas', respuesta.perdidas.lineas.map(function (fila) {
             return [fechaCorta(fila.fecha), fila.producto, fila.motivo, pesos(fila.valor), pesos(fila.valorVenta), fila.cargada ? 'Si' : 'No'];
           }));
+
+          pintarRetiros(respuesta.retiros, respuesta.disponible);
 
           document.getElementById('valorInventario').textContent =
             'Valor total del inventario: ' + pesos(respuesta.inventario.valorTotal);

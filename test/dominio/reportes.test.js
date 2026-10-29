@@ -268,3 +268,18 @@ test('reporteComprasPorProducto usa el id cuando no encuentra el nombre del usua
   const reporte = reporteComprasPorProducto(transacciones, USUARIOS, 'p1', '2026-09-01', '2026-09-30');
   assert.strictEqual(reporte.porUsuario[0].nombre, 'ux');
 });
+
+const { reporteRetiros } = require('../../src/dominio/reportes.js');
+
+test('reporteRetiros suma solo activos del rango, ordena desc e incluye anulados en lineas', () => {
+  const retiros = [
+    { id: 'r1', valor: 1000, motivo: 'a', fecha: '2026-10-01T10:00:00.000Z', admin: 'u1', estado: 'activo' },
+    { id: 'r2', valor: 5000, motivo: 'b', fecha: '2026-10-05T10:00:00.000Z', admin: 'u1', estado: 'anulado' },
+    { id: 'r3', valor: 2000, motivo: 'c', fecha: '2026-10-10T10:00:00.000Z', admin: 'u1', estado: 'activo' },
+    { id: 'r4', valor: 9000, motivo: 'd', fecha: '2026-11-01T10:00:00.000Z', admin: 'u1', estado: 'activo' }
+  ];
+  const reporte = reporteRetiros(retiros, '2026-10-01', '2026-10-31');
+  assert.strictEqual(reporte.total, 3000);
+  assert.deepStrictEqual(reporte.lineas.map(l => l.id), ['r3', 'r2', 'r1']);
+  assert.strictEqual(reporte.lineas[1].estado, 'anulado');
+});
